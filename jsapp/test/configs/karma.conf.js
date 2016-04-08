@@ -7,6 +7,8 @@ module.exports = function(config) {
         files: [
             // angular
             'components/angular/angular.js',
+            '../node_modules/inject-js/node_modules/lodash/lodash.js',
+            '../node_modules/inject-js/dist/inject.js',
             'components/angular-cookies/angular-cookies.js',
             'components/angular-mocks/angular-mocks.js',
             'components/angular-resource/angular-resource.js',
@@ -45,7 +47,7 @@ module.exports = function(config) {
             'kobo/directives/*.js',
 
             // kobo jsapp compiled files
-            'kobo.compiled/**/*.js',
+            'kobo/compiled/**/*.js',
             // 'kobo.compiled/**/*.html',
 
             // jsapp/test files

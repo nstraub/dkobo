@@ -1,4 +1,4 @@
-kobo.run(function ($http, $cookies, $miscUtils) {
+kobo.run(function ($http, $cookies, $injectJS) {
     $http.defaults.headers.common['X-CSRFToken'] = $cookies.csrftoken;
     $(function () {
         $('.alert-modal').dialog({

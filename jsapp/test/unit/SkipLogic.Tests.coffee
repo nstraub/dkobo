@@ -4,69 +4,6 @@ skip_logic_model = (dkobo_xlform)->
   $vRdsl  = $viewRowDetailSkipLogic   = dkobo_xlform.view.rowDetailSkipLogic
   $slh    = $skipLogicHelpers         = dkobo_xlform.helper.skipLogic
 
-  describe 'skip logic factory', () ->
-    _factory = new $mRdsl.SkipLogicFactory()
-
-    beforeEach ->
-      @addMatchers toBeInstanceOf: (expectedInstance) ->
-        actual = @actual
-        notText = (if @isNot then " not" else "")
-        @message = ->
-          "Expected " + actual.constructor.name + notText + " is instance of " + expectedInstance.name
-
-        actual instanceof expectedInstance
-
-      return
-
-
-    it 'creates a basic skip logic operator', () ->
-      operator = _factory.create_operator 'basic', '=', 1
-
-      expect(operator).toBeInstanceOf $mRdsl.SkipLogicOperator
-      expect(operator.get('id')).toBe 1
-      expect(operator.get('symbol')).toBe '='
-
-    it 'creates a text skip logic operator', () ->
-      operator = _factory.create_operator 'text', '=', 1
-
-      expect(operator).toBeInstanceOf $mRdsl.TextOperator
-      expect(operator.get('id')).toBe 1
-      expect(operator.get('symbol')).toBe '='
-
-    it 'creates an existence skip logic operator', () ->
-      operator = _factory.create_operator 'existence', '=', 1
-
-      expect(operator).toBeInstanceOf $mRdsl.ExistenceSkipLogicOperator
-      expect(operator.get('id')).toBe 1
-      expect(operator.get('symbol')).toBe '='
-
-    it 'creates a select multiple skip logic operator', () ->
-      operator = _factory.create_operator 'select_multiple', '=', 1
-
-      expect(operator).toBeInstanceOf $mRdsl.SelectMultipleSkipLogicOperator
-      expect(operator.get('id')).toBe 1
-      expect(operator.get('symbol')).toBe '='
-
-    it 'creates an empty skip logic operator', () ->
-      operator = _factory.create_operator 'empty', '=', 1
-
-      expect(operator).toBeInstanceOf $mRdsl.EmptyOperator
-      expect(operator.get('id')).toBe 0
-      expect(operator.get('symbol')).toBeUndefined()
-
-    it 'creates a criterion model', () ->
-      criterion = _factory.create_criterion_model 'test question', 'test operator'
-
-      expect(criterion).toBeInstanceOf $mRdsl.SkipLogicCriterion
-
-    it 'creates a text response model', () ->
-      expect(_factory.create_response_model 'text').toBeInstanceOf $mRdsl.ResponseModel
-
-    it 'creates an integer response model', () ->
-      expect(_factory.create_response_model 'integer').toBeInstanceOf $mRdsl.IntegerResponseModel
-
-    it 'creates a decimal response model', () ->
-      expect(_factory.create_response_model 'decimal').toBeInstanceOf $mRdsl.DecimalResponseModel
 
   #*********************************************************************
   #**----------------------------------------------------------------***
@@ -81,10 +18,11 @@ skip_logic_model = (dkobo_xlform)->
 
 
     beforeEach () ->
-      _survey =
-        rows:
-          get: sinon.stub().withArgs('test').returns(getType: () -> operators: [1, 2])
-      _criterion = new $mRdsl.SkipLogicCriterion
+      _survey = sinon.stubObject($model.Survey)
+      _survey.rows =
+        get: sinon.stub().withArgs('test').returns(getType: () -> operators: [1, 2])
+
+      _criterion = new $mRdsl.SkipLogicCriterion _survey
 
       _operator =
         serialize: sinon.stub().withArgs('test question', 'test value').returns 'test criterion'
@@ -192,12 +130,19 @@ skip_logic_model = (dkobo_xlform)->
 
     describe 'change operator', () ->
       question_stub = null
+      operator_stub = null
       beforeEach () ->
         question_stub =
           get_type: sinon.stub().returns(response_type: 'text', operators: [1, 2], equality_operator_type: 'text')
           _isSelectQuestion: () -> false
 
-        _criterion.factory = create_operator: sinon.stub().withArgs('existence', '=', 1).returns 'test operator'
+        operator_stub = sinon.stub()
+        injector.registerFake('SkipLogic/Model/Operator', ['operator_parser_name','operator_symbol','operator_type_id',operator_stub])
+        delete injector.fakes['SkipLogic/Model/Operator'].lifetime
+
+        operator_stub.withArgs('existence', '=', 1).returns 'test operator'
+        operator_stub.withArgs('existence', '!=', 1).returns 'test operator'
+
         _criterion._get_question = sinon.stub().returns(question_stub)
 
         _criterion.change_response = sinon.spy()
@@ -206,6 +151,7 @@ skip_logic_model = (dkobo_xlform)->
         response_value_getter.withArgs('value').returns('test')
 
         _criterion.set 'response_value', get: response_value_getter
+
       it 'changes the operator model', () ->
         _criterion.change_operator 1
 
@@ -227,8 +173,7 @@ skip_logic_model = (dkobo_xlform)->
         expect(_criterion.change_response).toHaveBeenCalledWith 'test'
 
       it "uses question's equality operator when operator type is equality", () ->
-        _criterion.factory.create_operator = sinon.stub()
-        _criterion.factory.create_operator.withArgs('text', '=', 2).returns 'test operator'
+        operator_stub.withArgs('text', '=', 2).returns 'test operator'
         _criterion.change_operator 2
 
         expect(_criterion.get 'operator').toBe 'test operator'
@@ -255,6 +200,7 @@ skip_logic_model = (dkobo_xlform)->
 
     describe 'change response value', () ->
       __getter = null
+      _response_stub = null
       beforeEach () ->
         response_model = set_value: sinon.spy()
         response_value_getter = sinon.stub()
@@ -268,7 +214,10 @@ skip_logic_model = (dkobo_xlform)->
 
         _criterion._get_question = sinon.stub().returns(get_type: sinon.stub().returns(response_type: 'text'), getList: () -> options: models: [{get: sinon.stub().returns('test option'), cid: 'test option'}, {get: sinon.stub().returns('test option 2'), cid: 'test option 2'}, {get: sinon.stub().returns('test option 3'), cid: 'test option 3'}])
 
-        _criterion.factory = create_response_model: sinon.stub().returns set_value: sinon.spy(), set: sinon.spy(), get: response_value_getter
+        _response_stub = sinon.stub().returns set_value: sinon.spy(), set: sinon.spy(), get: response_value_getter
+        injector.registerFake('SkipLogic/Model/Response', ['type', _response_stub])
+        delete injector.fakes['SkipLogic/Model/Response'].lifetime
+
         _criterion.set 'response_value', response_model
       it 'changes response value', () ->
         _criterion.change_response 'test value'
@@ -277,12 +226,12 @@ skip_logic_model = (dkobo_xlform)->
         _criterion._get_question = sinon.stub().returns(get_type: sinon.stub().returns(response_type: 'integer'))
         _criterion.change_response(12)
 
-        expect(_criterion.factory.create_response_model).toHaveBeenCalledWith 'integer'
+        expect(_response_stub).toHaveBeenCalledWith 'integer'
       it "gives operator's response type precedence", () ->
         _criterion.set 'operator', get_type: () -> response_type: 'empty'
         _criterion.change_response null
 
-        expect(_criterion.factory.create_response_model).toHaveBeenCalledWith 'empty'
+        expect(_response_stub).toHaveBeenCalledWith 'empty'
 
       it 'sets value to first option for select question types', () ->
         _criterion.get_correct_type = sinon.stub().returns('dropdown')
@@ -426,35 +375,6 @@ skip_logic_model = (dkobo_xlform)->
   #**----------------------------------------------------------------***
   #********************************************************************#
 
-  describe 'date response value', () ->
-    it 'sets state to valid when passed value is in date format', () ->
-      response = new $mRdsl.DateResponseModel
-      response.set_value("date('1234-12-12')")
-
-      expect(response.isValid()).toBeTruthy()
-      expect(response.get('value')).toBe("date('1234-12-12')")
-
-    it 'sets state to invalid when passed value is not in date format', () ->
-      response = new $mRdsl.DateResponseModel
-      response.set_value('asdfasdf')
-
-      expect(response.isValid()).toBeFalsy()
-      expect(response.get('value')).toBeUndefined()
-
-    it 'formats value when is raw date format', () ->
-      response = new $mRdsl.DateResponseModel
-      response.set_value('1234-12-12')
-
-      expect(response.isValid()).toBeTruthy()
-      expect(response.get('value')).toBe("date('1234-12-12')")
-
-  #*********************************************************************
-  #**----------------------------------------------------------------***
-  #********************************************************************#
-
-  describe 'select response value', () ->
-    it 'validates the current value against the option list of single select and multi select option lists ', () ->
-
   #*********************************************************************
   #**----------------------------------------------------------------***
   #********************************************************************#
@@ -573,15 +493,19 @@ skip_logic_helpers = (dkobo_xlform) ->
     _model = null
     _view = null
     _builder = null
-    _view_factory = null
+    _survey = null
     beforeEach () ->
+      _survey = sinon.stubObject $model.Survey
+      _survey.getSurvey.returns _survey
       _model = sinon.stubObject $mRdsl.SkipLogicCriterion
       row_stub = sinon.stubObject $model.Row
       row_stub._isSelectQuestion = () -> false
 
       _model._get_question.returns row_stub
 
-      _model.get.withArgs('operator').returns(sinon.stubObject $mRdsl.Operator)
+      operator = sinon.stubObject $mRdsl.Operator
+
+      _model.get.withArgs('operator').returns(operator)
       _model.get.withArgs('response_value').returns(sinon.stubObject $mRdsl.ResponseModel)
 
       _view = sinon.stubObject $mRdsl.SkipLogicCriterion
@@ -592,18 +516,31 @@ skip_logic_helpers = (dkobo_xlform) ->
       _view.attach_response = sinon.spy()
 
       _builder = sinon.stubObject $slh.SkipLogicBuilder
-      _builder.current_question =
+      current_question = _builder.current_question =
         get: sinon.stub()
       _builder.current_question.get.returns(
         set: sinon.spy()
       )
 
-      _view_factory = sinon.stubObject $vRdsl.SkipLogicViewFactory
       response_view_stub = sinon.stubObject $vRdsl.SkipLogicEmptyResponse
       response_view_stub.$el = trigger: sinon.stub()
-      _view_factory.create_response_value_view.returns(response_view_stub)
 
-      _presenter = new $slh.SkipLogicPresenter _model, _view, _builder, null, _view_factory
+      injector.registerFake('SkipLogic/Model/Operator', ()->operator)
+      delete injector.fakes['SkipLogic/Model/Operator'].lifetime
+
+      injector.registerFake('SkipLogic/View/QuestionPicker', ()->sinon.stubObject($vRdsl.QuestionPicker))
+      delete injector.fakes['SkipLogic/View/QuestionPicker'].lifetime
+
+      injector.registerFake('SkipLogic/Model/Criterion', ()->_model)
+      delete injector.fakes['SkipLogic/Model/Criterion'].lifetime
+
+      injector.registerFake('SkipLogic/View/Criterion', ()->_view)
+      delete injector.fakes['SkipLogic/View/Criterion'].lifetime
+
+      injector.registerFake('SkipLogic/View/Response', ()->response_view_stub)
+      delete injector.fakes['SkipLogic/View/Response'].lifetime
+
+      _presenter = injector.get('SkipLogic/Helpers/Presenter', _survey, {current_question})
       _presenter.determine_add_new_criterion_visibility = sinon.spy()
       _presenter.serialize_all = sinon.spy()
       _presenter.dispatcher = _.clone Backbone.Events
@@ -618,7 +555,8 @@ skip_logic_helpers = (dkobo_xlform) ->
         response_view_stub.$el = trigger: sinon.stub()
         response_model_stub = sinon.stubObject $mRdsl.ResponseModel
         _model.get.withArgs('response_value').returns response_model_stub
-        _view_factory.create_response_value_view.returns response_view_stub
+        injector.registerFake('SkipLogic/View/Response', ()->response_view_stub)
+        delete injector.fakes['SkipLogic/View/Response'].lifetime
 
         _presenter.change_question 'test'
 
@@ -626,8 +564,10 @@ skip_logic_helpers = (dkobo_xlform) ->
       it 'updates the operator view according to selected question type', () ->
         operator_view_stub = sinon.stubObject $vRdsl.OperatorPicker
 
+        injector.registerFake('SkipLogic/View/OperatorPicker', ()->operator_view_stub)
+        delete injector.fakes['SkipLogic/View/OperatorPicker'].lifetime
+
         _model._get_question().get_type.returns 'test type'
-        _view_factory.create_operator_picker.withArgs('test type').returns operator_view_stub
 
         _presenter.change_question 'test'
         expect(_view.change_operator).toHaveBeenCalledWith operator_view_stub
@@ -659,7 +599,8 @@ skip_logic_helpers = (dkobo_xlform) ->
         response_model_stub = sinon.stubObject $mRdsl.ResponseModel
         _model.get.withArgs('response_value').returns response_model_stub
 
-        _view_factory.create_response_value_view.returns response_view_stub
+        injector.registerFake('SkipLogic/View/Response', ()->response_view_stub)
+        delete injector.fakes['SkipLogic/View/Response'].lifetime
 
         _presenter.change_operator 'test'
 
@@ -686,9 +627,6 @@ skip_logic_helpers = (dkobo_xlform) ->
     describe 'serialize', () ->
 
   describe 'criterion builder helper', () ->
-    _helper_factory = sinon.stubObject $slh.SkipLogicHelperFactory
-    _model_factory = sinon.stubObject $mRdsl.SkipLogicFactory
-    _view_factory = sinon.stubObject $vRdsl.SkipLogicViewFactory
     _question = null
     _survey = null
     _parser_stub = null
@@ -698,7 +636,7 @@ skip_logic_helpers = (dkobo_xlform) ->
     _delimiter_spy = null
     _facade = null
 
-    beforeEach () ->
+    init_facade = () ->
       _question = sinon.stubObject $model.Row
       _survey = sinon.stubObject $model.Survey
       _parser_stub = null
@@ -712,7 +650,6 @@ skip_logic_helpers = (dkobo_xlform) ->
         show: sinon.spy()
         hide: sinon.spy()
 
-      _view_factory.create_criterion_builder_view.returns _view
       _view.render.returns _view
       _presenter_stubs = [
         sinon.stubObject $slh.SkipLogicPresenter
@@ -722,16 +659,22 @@ skip_logic_helpers = (dkobo_xlform) ->
       for presenter in _presenter_stubs
         presenter.model = _get_question: sinon.stub()
 
-      _facade = new $slh.SkipLogicCriterionBuilderHelper(
+      injector.registerFake('SkipLogic/View/CriterionBuilder', ()-> return _view)
+      delete injector.fakes['SkipLogic/View/CriterionBuilder'].lifetime
+
+      return new $slh.SkipLogicCriterionBuilderHelper(
         _presenter_stubs
         'and'
         _builder
-        _view_factory
       )
+
+    afterEach () ->
+      injector.flushFakes()
 
     describe 'render', () ->
       _determine_criterion_visibility_spy = null
       beforeEach () ->
+        _facade = init_facade()
         _determine_criterion_visibility_spy = sinon.spy()
         _facade.determine_criterion_delimiter_visibility = _determine_criterion_visibility_spy
         _view.$.withArgs('.skiplogic__criterialist').returns 'test destination'
@@ -753,6 +696,7 @@ skip_logic_helpers = (dkobo_xlform) ->
         expect(_facade.$criterion_delimiter).toBe _delimiter_spy
     describe 'determine_criterion_delimiter_visibility', () ->
       beforeEach () ->
+        _facade = init_facade()
         _facade.$criterion_delimiter = _delimiter_spy
       it 'shows the criterion delimiter when there is more than one presenter', () ->
         _facade.determine_criterion_delimiter_visibility()
@@ -764,6 +708,8 @@ skip_logic_helpers = (dkobo_xlform) ->
         expect(_delimiter_spy.hide).toHaveBeenCalledOnce()
 
     describe 'serialize', () ->
+      beforeEach () ->
+        _facade = init_facade()
       it 'returns serialized criteria', () ->
         _presenter_stubs[0].serialize.returns 'one'
         _presenter_stubs[1].serialize.returns 'two'
@@ -779,6 +725,7 @@ skip_logic_helpers = (dkobo_xlform) ->
       _empty_presenter_stub = null
 
       beforeEach () ->
+        _facade = init_facade()
         _empty_presenter_stub = sinon.stubObject $slh.SkipLogicPresenter
         _builder.build_empty_criterion.returns _empty_presenter_stub
         _facade.presenters.push = sinon.spy()
@@ -797,6 +744,7 @@ skip_logic_helpers = (dkobo_xlform) ->
 
     describe 'remove', () ->
       it 'removes presenter with model with passed id', () ->
+        _facade = init_facade()
         _presenter_stubs[0].model = cid: 1
         _presenter_stubs[1].model = cid: 2
         _presenter_stubs[0].view = $el: remove: sinon.spy()
@@ -822,10 +770,13 @@ skip_logic_helpers = (dkobo_xlform) ->
 
   describe 'helper context', () ->
     initialize_helper_context = (serialized_criteria) ->
-      helper_factory = sinon.stubObject($slh.SkipLogicHelperFactory)
-      helper_factory.survey =
-        off: sinon.spy()
-      return new $slh.SkipLogicHelperContext sinon.stubObject($mRdsl.SkipLogicFactory), sinon.stubObject($vRdsl.SkipLogicViewFactory), helper_factory, serialized_criteria
+      helper_factory =
+        survey:
+          off: sinon.spy()
+          getSurvey: () -> helper_factory.survey
+
+      return injector.get('SkipLogic/Helpers/Context', helper_factory.survey, {serialized_criteria})
+      #return new $slh.SkipLogicHelperContext sinon.stubObject($mRdsl.SkipLogicFactory), sinon.stubObject($vRdsl.SkipLogicViewFactory), helper_factory, serialized_criteria
     describe 'render', () ->
       it 'calls render on inner state', () ->
         context = initialize_helper_context()
@@ -890,14 +841,11 @@ skip_logic_helpers = (dkobo_xlform) ->
 
   describe 'skip logic builder', () ->
     initialize_builder = () ->
-      model_factory = sinon.stubObject $mRdsl.SkipLogicFactory
-      view_factory = sinon.stubObject $vRdsl.SkipLogicViewFactory
       survey = sinon.stubObject $model.Survey
+      survey.getSurvey.returns(survey)
       current_question = sinon.stubObject $model.Row
-      helper_factory = sinon.stubObject $slh.SkipLogicHelperFactory
 
-      new $slh.SkipLogicBuilder(model_factory, view_factory, survey, current_question, helper_factory)
-
+      return injector.get('SkipLogic/Helpers/Builder', survey, {current_question, survey})
     describe 'build criterion builder', () ->
       _builder = null
       _parser_stub = null
@@ -973,61 +921,15 @@ skip_logic_helpers = (dkobo_xlform) ->
     describe 'build empty criterion logic', () ->
       it 'returns an empty criterion logic model', () ->
         builder = initialize_builder()
-
-        criterion_model = new Backbone.Model()
-
-        builder.model_factory.create_criterion_model.returns criterion_model
-
-        builder.model_factory.create_operator.withArgs('empty').returns 'empty operator'
-
-        builder.view_factory.create_question_picker = sinon.stub().returns 'question view'
-
-
-        builder.view_factory.create_operator_picker.withArgs(null).returns 'operator picker'
-        builder.view_factory.create_response_value_view.withArgs(null).returns 'response value'
-
-        builder.view_factory.create_criterion_view.withArgs('question view', 'operator picker', 'response value').returns 'criterion view'
-
-        builder.helper_factory.create_presenter.withArgs(criterion_model, 'criterion view').returns 'empty criterion presenter'
-
+        fake_presenter = () ->
+        injector.registerFake('SkipLogic/Helpers/Presenter', fake_presenter)
         result = builder.build_empty_criterion()
 
-        expect(result).toBe 'empty criterion presenter'
+        expect(result).toBeInstanceOf fake_presenter
 
-    describe 'build criterion logic', () ->
-      it 'returns a criterion model based on passed criterion', () ->
-        # builder = initialize_builder()
-        #
-        # criterion =
-      it 'returns false when question no longer exists', () ->
-
-    describe 'build hand code criteria', () ->
-    describe 'build criterion builder', () ->
-
-    describe 'build operator logic', () ->
-    describe 'build operator model', () ->
-    describe 'build operator view', () ->
-    describe 'build question view', () ->
-    describe 'build response view', () ->
-    describe 'build response model', () ->
-    describe 'questions', () ->
-  describe 'helper factory', () ->
-    _view_factory = sinon.stubObject $vRdsl.SkipLogicViewFactory
-    beforeEach () ->
-      @addMatchers toBeInstanceOf: (expectedInstance) ->
-        actual = @actual
-        notText = (if @isNot then " not" else "")
-        @message = ->
-          "Expected " + actual.constructor.name + notText + " is instance of " + expectedInstance.name
-
-        actual instanceof expectedInstance
-
-skip_logic_views = (dkobo_xlform) ->
-  $model  = dkobo_xlform.model
-  $mRdsl  = $modelRowDetailsSkipLogic = $model.rowDetailsSkipLogic
-  $vRdsl  = $viewRowDetailSkipLogic   = dkobo_xlform.view.rowDetailSkipLogic
-  $slh    = $skipLogicHelpers         = dkobo_xlform.helper.skipLogic
-
-describe 'skip logic model', -> skip_logic_model.call(@, dkobo_xlform)
-describe 'skip logic helpers', -> skip_logic_helpers.call(@, dkobo_xlform)
-describe 'skip logic views', -> skip_logic_views.call(@, dkobo_xlform)
+describe 'skip logic', ()->
+  beforeEach () ->
+    injector.clearState()
+    injector.cache = {}
+  describe 'model', -> skip_logic_model.call(@, dkobo_xlform)
+  describe 'helpers', -> skip_logic_helpers.call(@, dkobo_xlform)

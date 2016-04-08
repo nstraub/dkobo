@@ -24,6 +24,7 @@ test_helper =
     module "templates/InfoList.Template.html"
     module "templates/ItemList.Directive.Template.html"
     module "templates/KobocatFormPublisher.Template.html"
+    module "injectJS"
   initializeController: (@$controller, name, $rootScope, $userDetails = {}) ->
     @$rs = $rootScope
     @$scope = $rootScope

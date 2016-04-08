@@ -1,11 +1,13 @@
 define 'cs!xlform/view.widgets', [
-        'backbone'
+        'backbone',
+        '$injectJS'
         ], (
-            Backbone
+            Backbone,
+            $injectJS
             )->
-  
+
   viewWidgets = {}
-  
+
   class viewWidgets.Base extends Backbone.View
     attach_to: ($el) ->
       if $el instanceof viewWidgets.Base
@@ -38,6 +40,9 @@ define 'cs!xlform/view.widgets', [
       if @input
         @$el.attr 'for', @input.cid
       @
+    $inject: ['text', 'className', 'input']
+
+    $injectJS.registerType('Widgets/Label', Label)
 
   class viewWidgets.EmptyView extends viewWidgets.Base
     attach_to: () -> return
@@ -45,6 +50,8 @@ define 'cs!xlform/view.widgets', [
     bind_event: () -> return
     render: () -> @
     val: () -> null
+
+    $injectJS.registerType('Widgets/Empty', EmptyView)
 
   class viewWidgets.TextArea extends viewWidgets.Base
     tagName: 'textarea'
@@ -55,6 +62,9 @@ define 'cs!xlform/view.widgets', [
 
       @
     constructor: (@text, @className) -> super()
+    $inject: ['text', 'className']
+
+    $injectJS.registerType('Widgets/TextArea', TextArea)
 
   class viewWidgets.TextBox extends viewWidgets.Base
     tagName: 'input'
@@ -67,6 +77,9 @@ define 'cs!xlform/view.widgets', [
 
       @
     constructor: (@text, @className, @placeholder) -> super()
+    $inject: ['text', 'className', 'placeholder']
+
+    $injectJS.registerType('Widgets/TextBox', TextBox)
 
   class viewWidgets.Button extends viewWidgets.Base
     tagName: 'button'
@@ -76,6 +89,9 @@ define 'cs!xlform/view.widgets', [
 
       @
     constructor: (@text, @className) -> super()
+    $inject: ['text', 'className']
+
+    $injectJS.registerType('Widgets/Button', Button)
 
   class viewWidgets.DropDownModel extends Backbone.Model
 
@@ -98,5 +114,9 @@ define 'cs!xlform/view.widgets', [
     attach_to: (target) ->
       super(target)
       @$el.select2({ minimumResultsForSearch: -1 })
+
+    $inject: 'options'
+
+    $injectJS.registerType('Widgets/DropDown', DropDown)
 
   viewWidgets

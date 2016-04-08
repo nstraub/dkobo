@@ -39,6 +39,10 @@
 
     <script src="{% static 'components/jquery/dist/jquery.js' %}"></script>
 
+      <script src="{% static 'js/lodash.js' %}"></script>
+      <script src="{% static 'components/angular/angular.js' %}"></script>
+      <script src="{% static 'js/inject.js' %}"></script>
+
     {% compress js %}
       <script src="{% static 'components/jquery-migrate/jquery-migrate.js' %}"></script>
       <script src="{% static 'components/underscore/underscore.js' %}"></script>
@@ -64,7 +68,6 @@
 
     {% compress js %}
       <script src="{% static 'js/log.coffee' %}" type="text/coffeescript"></script>
-      <script src="{% static 'components/angular/angular.js' %}"></script>
       <script src="{% static 'components/angular-sanitize/angular-sanitize.min.js' %}"></script>
       <script src="{% static 'components/angular-cookies/angular-cookies.js' %}"></script>
       <script src="{% static 'components/angular-mocks/angular-mocks.js' %}"></script>

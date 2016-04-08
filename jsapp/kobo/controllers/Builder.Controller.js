@@ -2,9 +2,9 @@
 /* global dkobo_xlform */
 'use strict';
 
-kobo.controller('BuilderController', ['$scope', '$rootScope', '$routeParams', '$routeTo', '$miscUtils', '$userDetails', '$api', '$q', BuilderController]);
+kobo.controller('BuilderController', ['$scope', '$rootScope', '$routeParams', '$routeTo', '$miscUtils', '$userDetails', '$api', '$q', '$injectJS', BuilderController]);
 
-function BuilderController($scope, $rootScope, $routeParams, $routeTo, $miscUtils, $userDetails, $api, $q) {
+function BuilderController($scope, $rootScope, $routeParams, $routeTo, $miscUtils, $userDetails, $api, $q, $injectJS) {
     $rootScope.activeTab = 'Forms';
     $scope.routeParams = $routeParams;
     var forceLeaveConfirmation = !$userDetails.debug;
@@ -112,6 +112,10 @@ function BuilderController($scope, $rootScope, $routeParams, $routeTo, $miscUtil
         $scope.xlfSurveyApp = dkobo_xlform.view.SurveyApp.create({el: 'section.form-builder', survey: $scope.xlfSurvey, ngScope: $scope, save: saveCallback});
         $scope.xlfSurveyApp.render();
     }
+
+    $injectJS.registerProvider('survey', function () {
+        return this.getSurvey();
+    });
 
     $scope.add_row_to_question_library = function (row) {
         var survey = dkobo_xlform.model.Survey.create();

@@ -2,19 +2,17 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
         'backbone',
         'xlform/model.rowDetails.skipLogic',
         'cs!xlform/view.widgets',
-        'cs!xlform/mv.skipLogicHelpers'
+        'cs!xlform/mv.skipLogicHelpers',
+        '$injectJS'
         ], (
             Backbone,
             $modelRowDetailsSkipLogic,
             $viewWidgets,
-            $skipLogicHelpers
+            $skipLogicHelpers,
+            $injectJS
             )->
 
   viewRowDetailSkipLogic = {}
-
-  ###----------------------------------------------------------------------------------------------------------###
-  #-- View.RowDetail.SkipLogic.CriterionBuilderView.coffee
-  ###----------------------------------------------------------------------------------------------------------###
 
   class viewRowDetailSkipLogic.SkipLogicCriterionBuilderView extends $viewWidgets.Base
     events:
@@ -52,6 +50,8 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
 
     markChangedDelimSelector: (evt) ->
       @criterion_delimiter = evt.target.value
+
+    $injectJS.registerType('SkipLogic/View/CriterionBuilder', SkipLogicCriterionBuilderView, 'transient')
 
   class viewRowDetailSkipLogic.SkipLogicCriterion extends $viewWidgets.Base
     tagName: 'div'
@@ -124,12 +124,12 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
       @attach_response()
       super
 
-    constructor: (@question_picker_view, @operator_picker_view, @response_value_view, @presenter) ->
+    constructor: (@question_picker_view, @operator_picker_view, @response_value_view, @model) ->
       super()
 
-  ###----------------------------------------------------------------------------------------------------------###
-  #-- View.RowDetail.SkipLogic.QuestionPickerView.coffee
-  ###----------------------------------------------------------------------------------------------------------###
+    $inject: ['SkipLogic/View/QuestionPicker', 'SkipLogic/View/OperatorPicker', 'SkipLogic/View/Response', 'SkipLogic/Model/Criterion']
+
+    $injectJS.registerType('SkipLogic/View/Criterion', SkipLogicCriterion, 'root')
 
   class viewRowDetailSkipLogic.QuestionPicker extends $viewWidgets.DropDown
     tagName: 'select'
@@ -145,9 +145,34 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
       target.find('.skiplogic__rowselect').remove()
       super(target)
 
-  ###----------------------------------------------------------------------------------------------------------###
-  #-- View.RowDetail.SkipLogic.OperatorPickerView.coffee
-  ###----------------------------------------------------------------------------------------------------------###
+    constructor: (model) ->
+      super(model)
+
+    $inject: ['SkipLogic/View/QuestionPickerModel']
+
+    $injectJS.registerType('SkipLogic/View/QuestionPicker', QuestionPicker, 'transient')
+
+  $injectJS.registerType('SkipLogic/View/QuestionPickerModel', $viewWidgets.DropDownModel, 'transient',
+    [
+      'model',
+      'current_question',
+      'survey',
+      (model, target_question, survey) ->
+        set_options = () =>
+          options = _.map target_question.selectableRows(), (row) ->
+            value: row.cid
+            text: row.getValue("label")
+
+          options.unshift value: -1, text: 'Select question from list'
+          model.set 'options', options
+
+        set_options()
+        survey.on 'sortablestop', set_options
+
+        return model
+    ]
+  )
+
 
   class viewRowDetailSkipLogic.OperatorPicker extends $viewWidgets.Base
     tagName: 'div'
@@ -198,12 +223,10 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
       chosen_element = @$el.parents('.skiplogic__criterion').find('.select2-container.skiplogic__expressionselect .select2-chosen')
       chosen_element.text(abbreviated_label)
 
-    constructor: (@operators) ->
-      super()
-
-  ###----------------------------------------------------------------------------------------------------------###
-  #-- View.RowDetail.SkipLogic.ResponseViews.coffee
-  ###----------------------------------------------------------------------------------------------------------###
+    $injectJS.registerType('SkipLogic/View/OperatorPicker', OperatorPicker, 'transient', ['view', 'question_type', (view, question_type) ->
+      view.operators = if question_type? then _.filter($skipLogicHelpers.operator_types, (op_type) -> op_type.id in question_type.operators) else []
+      return view
+    ])
 
   class viewRowDetailSkipLogic.SkipLogicEmptyResponse extends $viewWidgets.EmptyView
     className: 'skiplogic__responseval'
@@ -211,6 +234,7 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
       target.find('.skiplogic__responseval').remove()
       super(target)
 
+    $injectJS.registerType('SkipLogic/View/Responses/Empty', SkipLogicEmptyResponse)
   class viewRowDetailSkipLogic.SkipLogicTextResponse extends $viewWidgets.TextBox
     attach_to: (target) ->
       target.find('.skiplogic__responseval').remove()
@@ -221,6 +245,10 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
 
     constructor: (text) ->
       super(text, "skiplogic__responseval", "response value")
+
+    $inject: ['text']
+
+    $injectJS.registerType('SkipLogic/View/Responses/Text', SkipLogicTextResponse)
 
   class viewRowDetailSkipLogic.SkipLogicValidatingTextResponseView extends viewRowDetailSkipLogic.SkipLogicTextResponse
     render: () ->
@@ -249,6 +277,8 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
       else
         @$input.val()
 
+    $injectJS.registerType('SkipLogic/View/Responses/ValidatingText', SkipLogicValidatingTextResponseView)
+
   class viewRowDetailSkipLogic.SkipLogicDropDownResponse extends $viewWidgets.DropDown
     tagName: 'select'
     className: 'skiplogic__responseval'
@@ -274,57 +304,28 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
         value: response.cid
       )
 
-  ###----------------------------------------------------------------------------------------------------------###
-  #-- Factories.RowDetail.SkipLogic.coffee
-  ###----------------------------------------------------------------------------------------------------------###
+    $injectJS.registerType('SkipLogic/View/Responses/DropDown', SkipLogicDropDownResponse)
 
+  $injectJS.registerProvider('SkipLogic/View/Response', ['question', 'question_type', 'operator_type', (question, question_type, operator_type) ->
+    if !question?
+      type = 'empty'
+    else if operator_type.response_type?
+      type = operator_type.response_type
+    else
+      type = question_type.response_type
+
+    switch type
+      when 'empty' then type = 'Empty'
+      when 'text', 'integer', 'decimal' then type = 'Text'
+      when 'dropdown'
+        type = 'DropDown'
+        dependencies = options: question.getList().options
+      else return null
+
+    return $injectJS.get('SkipLogic/View/Responses/' + type, @, dependencies)
+  ])
+
+  # deprecated, use $injectJS instead
   class viewRowDetailSkipLogic.SkipLogicViewFactory
-    constructor: (@survey) ->
-    create_question_picker: (target_question) ->
-      model = new $viewWidgets.DropDownModel()
-      set_options = () =>
-        options = _.map target_question.selectableRows(), (row) ->
-          value: row.cid
-          text: row.getValue("label")
-
-        options.unshift value: -1, text: 'Select question from list'
-        model.set 'options', options
-
-      set_options()
-      @survey.on 'sortablestop', set_options
-
-      new viewRowDetailSkipLogic.QuestionPicker model
-    create_operator_picker: (question_type) ->
-      operators = if question_type? then _.filter($skipLogicHelpers.operator_types, (op_type) -> op_type.id in question_type.operators) else []
-      new viewRowDetailSkipLogic.OperatorPicker operators
-    create_response_value_view: (question, question_type, operator_type) ->
-      if !question?
-        type = 'empty'
-      else if operator_type.response_type?
-        type = operator_type.response_type
-      else
-        type = question_type.response_type
-
-      switch type
-        when 'empty' then new viewRowDetailSkipLogic.SkipLogicEmptyResponse()
-        when 'text' then new viewRowDetailSkipLogic.SkipLogicTextResponse
-        when 'dropdown' then new viewRowDetailSkipLogic.SkipLogicDropDownResponse question.getList().options
-        when 'integer', 'decimal' then new viewRowDetailSkipLogic.SkipLogicTextResponse
-        else null
-    create_criterion_view: (question_picker_view, operator_picker_view, response_value_view, presenter) ->
-      return new viewRowDetailSkipLogic.SkipLogicCriterion question_picker_view, operator_picker_view, response_value_view, presenter
-    create_criterion_builder_view: () ->
-      return new viewRowDetailSkipLogic.SkipLogicCriterionBuilderView()
-    create_textarea: (text, className) ->
-      return new $viewWidgets.TextArea text, className
-    create_button: (text, className) ->
-      return new $viewWidgets.Button text, className
-    create_textbox: (text, className='', placeholder='') ->
-      return new $viewWidgets.TextBox text, className, placeholder
-    create_label: (text, className) ->
-      return new $viewWidgets.Label text, className
-    create_empty: () ->
-      return new $viewWidgets.EmptyView()
-
 
   viewRowDetailSkipLogic

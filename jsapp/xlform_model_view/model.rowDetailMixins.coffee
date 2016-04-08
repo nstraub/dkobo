@@ -1,19 +1,9 @@
 define 'cs!xlform/model.rowDetailMixins', [
-        'cs!xlform/mv.skipLogicHelpers',
-        'xlform/model.rowDetails.skipLogic',
-        'cs!xlform/view.rowDetail.SkipLogic',
         'cs!xlform/model.utils',
-        'cs!xlform/mv.validationLogicHelpers',
-        'cs!xlform/model.rowDetail.validationLogic',
-        'cs!xlform/view.rowDetail.ValidationLogic'
+        '$injectJS'
         ], (
-            $skipLogicHelpers,
-            $modelRowDetailsSkipLogic,
-            $viewRowDetailSkipLogic,
             $modelUtils,
-            $validationLogicHelpers,
-            $modelRowDetailValidationLogic,
-            $viewRowDetailValidationLogic
+            $injectJS
             )->
   # To be extended ontop of a RowDetail when the key matches
   # the attribute in XLF.RowDetailMixin
@@ -26,13 +16,7 @@ define 'cs!xlform/model.rowDetailMixins', [
       v
 
     postInitialize: ()->
-      # TODO: get skip logic factories connected
-      survey = @getSurvey()
-      model_factory = new $modelRowDetailsSkipLogic.SkipLogicFactory survey
-      view_factory = new $viewRowDetailSkipLogic.SkipLogicViewFactory survey
-      helper_factory = new $skipLogicHelpers.SkipLogicHelperFactory model_factory, view_factory, survey, @_parent, @.get('value')
-
-      @facade = new $skipLogicHelpers.SkipLogicPresentationFacade model_factory, helper_factory, view_factory
+      @facade = $injectJS.get('SkipLogic/Facade', @, {current_question: @_parent, serialized_criteria: @.get('value')})
 
     serialize: ()->
       # @hidden = false
@@ -53,12 +37,7 @@ define 'cs!xlform/model.rowDetailMixins', [
       v
 
     postInitialize: () ->
-      survey = @getSurvey()
-      model_factory = new $modelRowDetailValidationLogic.ValidationLogicModelFactory survey
-      view_factory = new $viewRowDetailValidationLogic.ValidationLogicViewFactory survey
-      helper_factory = new $validationLogicHelpers.ValidationLogicHelperFactory model_factory, view_factory, survey, @_parent, @.get('value')
-
-      @facade = new $skipLogicHelpers.SkipLogicPresentationFacade model_factory, helper_factory, view_factory
+      @facade = $injectJS.get('SkipLogic/Facade', @, {current_question: @_parent, serialized_criteria: @.get('value')})
 
     serialize: ()->
       # @hidden = false

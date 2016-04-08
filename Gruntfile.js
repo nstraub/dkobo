@@ -99,6 +99,7 @@ module.exports = function(grunt) {
                         // stubbed paths for almond build
                         'backbone': 'build_stubs/backbone',
                         'underscore': 'build_stubs/underscore',
+                        '$injectJS': 'build_stubs/injectjs',
                         'jquery': 'build_stubs/jquery',
                         'backbone-validation': 'components/backbone-validation/dist/backbone-validation-amd',
                         // 'backbone': 'components/backbone/backbone',
@@ -143,6 +144,14 @@ module.exports = function(grunt) {
                 },
             },
         },
+        copy: {
+            main: {
+                expand: true,
+                src: ['node_modules/inject-js/dist/inject.js', 'node_modules/inject-js/node_modules/lodash/lodash.js'],
+                dest: 'dkobo/static/js/',
+                flatten: true
+            }
+        }
     });
 
     grunt.loadNpmTasks('grunt-contrib-watch');
@@ -150,8 +159,10 @@ module.exports = function(grunt) {
     grunt.loadNpmTasks('grunt-contrib-requirejs');
     grunt.loadNpmTasks('grunt-sass');
     grunt.loadNpmTasks('grunt-contrib-cssmin');
+    grunt.loadNpmTasks('grunt-contrib-copy');
 
     grunt.registerTask('build', [
+        'copy',
         'requirejs:compile_xlform',
         'build_css',
     ]);
@@ -177,6 +188,7 @@ module.exports = function(grunt) {
     ]);
 
     grunt.registerTask('default', [
+        'copy',
         'develop',
     ]);
 };

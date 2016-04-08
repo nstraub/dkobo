@@ -2,6 +2,8 @@ controller_tests = ->
   beforeEach ->
     sinon.stub(dkobo_xlform.view.SurveyApp, "create").returns render: ->
 
+  beforeEach test_helper.initialize_angular_modules
+  
   afterEach ->
     dkobo_xlform.view.SurveyApp.create.restore()
 

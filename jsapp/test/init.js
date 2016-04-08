@@ -15,6 +15,10 @@ sinon.stubObject = function (obj, target) {
     return cls.__proto__ ? sinon.stubObject(cls.__proto__, target) : target;
 };
 
+injector.registerProvider('survey', function () {
+    return this.getSurvey();
+});
+
 require.config({
     baseUrl: '/base/',
     paths: {

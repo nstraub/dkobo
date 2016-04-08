@@ -1,45 +1,31 @@
 define 'cs!xlform/mv.skipLogicHelpers', [
-        'xlform/model.skipLogicParser'
+        'xlform/model.skipLogicParser',
+        '$injectJS'
         ], (
-            $skipLogicParser
+            $skipLogicParser,
+            $injectJS
             )->
 
   skipLogicHelpers = {}
 
   ###----------------------------------------------------------------------------------------------------------###
-  #-- Factories.RowDetail.SkipLogic.coffee
+  #-- deprecated, $injectJS is used instead
   ###----------------------------------------------------------------------------------------------------------###
 
   class skipLogicHelpers.SkipLogicHelperFactory
-    constructor: (@model_factory, @view_factory, @survey, @current_question, @serialized_criteria) ->
-    create_presenter: (criterion_model, criterion_view) ->
-      return new skipLogicHelpers.SkipLogicPresenter criterion_model, criterion_view, @current_question, @survey, @view_factory
-    create_builder: () ->
-      return new skipLogicHelpers.SkipLogicBuilder @model_factory, @view_factory, @survey, @current_question, @
-    create_context: () ->
-      return new skipLogicHelpers.SkipLogicHelperContext @model_factory, @view_factory, @, @serialized_criteria
-
-  ###----------------------------------------------------------------------------------------------------------###
-  #-- Facades.RowDetail.coffee
-  ###----------------------------------------------------------------------------------------------------------###
 
   class skipLogicHelpers.SkipLogicPresentationFacade
-    constructor: (@model_factory, @helper_factory, @view_factory) ->
+    constructor: (@context) ->
     initialize: () ->
-      @context ?= @helper_factory.create_context()
     serialize: () ->
-      @context ?= @helper_factory.create_context()
       return @context.serialize()
     render: (target) ->
-      @context ?= @helper_factory.create_context()
       @context.render target
 
-  ###----------------------------------------------------------------------------------------------------------###
-  #-- Presentation.RowDetail.SkipLogic.Presenter.coffee
-  ###----------------------------------------------------------------------------------------------------------###
+    $injectJS.registerType('SkipLogic/Facade', ['SkipLogic/Helpers/Context', SkipLogicPresentationFacade])
 
   class skipLogicHelpers.SkipLogicPresenter
-    constructor: (@model, @view, @current_question, @survey, @view_factory) ->
+    constructor: (@model, @view, @current_question, @survey) ->
       @view.presenter = @
       if @survey
         update_choice_list = (cid) =>
@@ -82,7 +68,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       @question.on 'remove', () =>
         @dispatcher.trigger 'remove:presenter', @model.cid
 
-      @view.change_operator @view_factory.create_operator_picker question_type
+      @view.change_operator $injectJS.get('SkipLogic/View/OperatorPicker', null, {question_type})
       @view.operator_picker_view.val @model.get('operator').get_value()
       @view.attach_operator()
 
@@ -102,7 +88,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       @finish_changing()
 
     change_response_view: (question_type, operator_type) ->
-      response_view = @view_factory.create_response_value_view @model._get_question(), question_type, operator_type
+      response_view = $injectJS.get('SkipLogic/View/Response', null, {question: @model._get_question(), question_type, operator_type})
       response_view.model = @model.get 'response_value'
 
       @view.change_response response_view
@@ -134,7 +120,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
     render: (@destination) ->
       @view.question_picker_view.detach()
-      @view.question_picker_view = @view_factory.create_question_picker @current_question
+      @view.question_picker_view = $injectJS.get('SkipLogic/View/QuestionPicker', @survey, {@current_question})
       @view.render()
       @view.question_picker_view.val @model.get('question_cid')
       @view.operator_picker_view.val @model.get('operator').get_value()
@@ -154,8 +140,12 @@ define 'cs!xlform/mv.skipLogicHelpers', [
     serialize: () ->
       @model.serialize()
 
+    $inject: ['SkipLogic/Model/Criterion', 'SkipLogic/View/Criterion', 'current_question', 'survey']
+
+    $injectJS.registerType('SkipLogic/Helpers/Presenter', SkipLogicPresenter)
+
   class skipLogicHelpers.SkipLogicBuilder
-    constructor: (@model_factory, @view_factory, @survey, @current_question, @helper_factory) -> return
+    constructor: (@survey, @current_question) -> return
     build_criterion_builder: (serialized_criteria) ->
       if serialized_criteria == ''
         return [[@build_empty_criterion()], 'and']
@@ -180,34 +170,9 @@ define 'cs!xlform/mv.skipLogicHelpers', [
     _parse_skip_logic_criteria: (criteria) ->
       return $skipLogicParser criteria
 
-    build_operator_logic: (question_type) =>
-      return [
-        @build_operator_model(question_type, @_operator_type().symbol[@criterion.operator]),
-        @view_factory.create_operator_picker question_type
-      ]
-
-    build_operator_model: (question_type, symbol) ->
-      operator_type = @_operator_type()
-      return @model_factory.create_operator(
-        (if operator_type.type == 'existence' then 'existence' else question_type.equality_operator_type),
-        symbol,
-        operator_type.id)
-
     _operator_type: () ->
       return _.find skipLogicHelpers.operator_types, (op_type) =>
           @criterion?.operator in op_type.parser_name
-
-    build_criterion_logic: (operator_model, operator_picker_view, response_value_view) ->
-      criterion_model = @model_factory.create_criterion_model()
-      criterion_model.set('operator', operator_model)
-
-      criterion_view = @view_factory.create_criterion_view(
-        @view_factory.create_question_picker(@current_question),
-        operator_picker_view,
-        response_value_view
-      )
-      criterion_view.model = criterion_model
-      return @helper_factory.create_presenter criterion_model, criterion_view
 
     build_criterion: () =>
       question = @_get_question()
@@ -219,32 +184,51 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
       question_type = question.get_type()
 
-      [operator_model, operator_picker_view] = @build_operator_logic question_type
+      operator_type = @_operator_type()
 
-      response_value_view = @view_factory.create_response_value_view question, question_type, @_operator_type()
+      presenter = $injectJS.get(
+        'SkipLogic/Helpers/Presenter',
+        @survey,
+        {
+          operator_parser_name: (if operator_type.type == 'existence' then 'existence' else question_type.equality_operator_type),
+          operator_symbol: operator_type.symbol[@criterion.operator],
+          operator_type_id: operator_type.id
+          operator_type
+          question
+          question_type
+          @current_question
+        }
+      )
 
-      presenter = @build_criterion_logic operator_model, operator_picker_view, response_value_view
       presenter.model.change_question question.cid
 
       response_value = if question._isSelectQuestion() then _.find(question.getList().options.models, (option) => return option.get('name') == @criterion.response_value)?.cid else @criterion.response_value
       presenter.model.change_response response_value || ''
-      response_value_view.model = presenter.model.get 'response_value'
-      response_value_view.val(response_value)
+      presenter.view.response_value_view.model = presenter.model.get 'response_value'
+      presenter.view.response_value_view.val(response_value)
 
       return presenter
     _get_question: () ->
       @survey.findRowByName @criterion.name
 
     build_empty_criterion: () =>
-      operator_picker_view = @view_factory.create_operator_picker null
-      response_value_view = @view_factory.create_response_value_view null
 
-      return @build_criterion_logic @model_factory.create_operator('empty'), operator_picker_view, response_value_view
+      return $injectJS.get(
+        'SkipLogic/Helpers/Presenter',
+        @survey,
+        {
+          operator_parser_name: 'empty'
+          @current_question
+        }
+      )
 
     questions: () ->
       @selectable = @current_question.selectableRows() || @selectable
       return @selectable
 
+    $inject: ['survey', 'current_question']
+
+    $injectJS.registerType('SkipLogic/Helpers/Builder', SkipLogicBuilder, 'root')
 
   ###----------------------------------------------------------------------------------------------------------###
   #-- Presentation.RowDetail.SkipLogic.State.coffee
@@ -259,25 +243,24 @@ define 'cs!xlform/mv.skipLogicHelpers', [
     serialize: () ->
       return @state.serialize()
     use_criterion_builder_helper: () ->
-      @builder ?= @helper_factory.create_builder()
       presenters = @builder.build_criterion_builder(@state.serialize())
 
       if presenters == false
         @state = null
       else
-        @state = new skipLogicHelpers.SkipLogicCriterionBuilderHelper(presenters[0], presenters[1], @builder, @view_factory, @)
+        @state = new skipLogicHelpers.SkipLogicCriterionBuilderHelper(presenters[0], presenters[1], @builder, @)
         @render @destination
       return
     use_hand_code_helper: () ->
-      @state = new skipLogicHelpers.SkipLogicHandCodeHelper(@state.serialize(), @builder, @view_factory, @)
+      @state = new skipLogicHelpers.SkipLogicHandCodeHelper(@state.serialize(), @builder, @)
       @render @destination
       return
     use_mode_selector_helper : () ->
-      @helper_factory.survey.off null, null, @state
-      @state = new skipLogicHelpers.SkipLogicModeSelectorHelper(@view_factory, @)
+      @survey.off null, null, @state
+      @state = new skipLogicHelpers.SkipLogicModeSelectorHelper(@)
       @render @destination
       return
-    constructor: (@model_factory, @view_factory, @helper_factory, serialized_criteria) ->
+    constructor: (@builder, serialized_criteria, @survey) ->
       @state = serialize: () -> return serialized_criteria
       if !serialized_criteria? || serialized_criteria == ''
         serialized_criteria = ''
@@ -288,6 +271,10 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       if !@state?
         @state = serialize: () -> return serialized_criteria
         @use_hand_code_helper()
+
+    $inject: ['SkipLogic/Helpers/Builder', 'serialized_criteria', 'survey']
+
+    $injectJS.registerType('SkipLogic/Helpers/Context', SkipLogicHelperContext, 'root')
 
   class skipLogicHelpers.SkipLogicCriterionBuilderHelper
     determine_criterion_delimiter_visibility: () ->
@@ -340,8 +327,8 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       if !@$add_new_criterion_button
         trackJs?.console.error("@$add_new_criterion_button is not defined. cannot call #{action} [inside of determine_add_new_criterion_visibility]")
 
-    constructor: (@presenters, separator, @builder, @view_factory, @context) ->
-      @view = @view_factory.create_criterion_builder_view()
+    constructor: (@presenters, separator, @builder, @context) ->
+      @view = $injectJS.get('SkipLogic/View/CriterionBuilder')
       @view.criterion_delimiter = (separator || 'and').toLowerCase()
       @view.facade = @
       @dispatcher = _.clone Backbone.Events
@@ -390,10 +377,10 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       @button.bind_event 'click', () => @context.use_mode_selector_helper()
     serialize: () ->
       @textarea.$el.val() || @criteria
-    constructor: (@criteria, @builder, @view_factory, @context) ->
+    constructor: (@criteria, @builder, @context) ->
       @$parent = $('<div>')
-      @textarea = @view_factory.create_textarea @criteria, 'skiplogic__handcode-edit'
-      @button = @view_factory.create_button 'x', 'skiplogic-handcode__cancel'
+      @textarea = $injectJS.get('Widgets/TextArea', null, {text: @criteria, className: 'skiplogic__handcode-edit'})
+      @button = $injectJS.get('Widgets/Button', null, {text: 'x', className: 'skiplogic-handcode__cancel'})
 
   class skipLogicHelpers.SkipLogicModeSelectorHelper
     render: ($destination) ->
@@ -407,10 +394,9 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
     serialize: () ->
       return ''
-    constructor: (view_factory, @context) ->
-      @criterion_builder_button = view_factory.create_button '<i class="fa fa-plus"></i> Add a condition', 'skiplogic__button skiplogic__select-builder'
-      @handcode_button = view_factory.create_button '<i>${}</i> Manually enter your skip logic in XLSForm code', 'skiplogic__button skiplogic__select-handcode'
-      ###@view = @view_factory.create_skip_logic_picker_view(context)###
+    constructor: (@context) ->
+      @criterion_builder_button = $injectJS.get 'Widgets/Button', null, {text: '<i class="fa fa-plus"></i> Add a condition', className: 'skiplogic__button skiplogic__select-builder'}
+      @handcode_button = $injectJS.get 'Widgets/Button', null, {text: '<i>${}</i> Manually enter your skip logic in XLSForm code', className: 'skiplogic__button skiplogic__select-handcode'}
     switch_editing_mode: () -> return
 
   operators =
@@ -606,5 +592,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       }
     }
   ]
+
+  $injectJS.registerProvider('operator_types', ['index', (index)-> skipLogicHelpers.operator_types[index]])
 
   skipLogicHelpers

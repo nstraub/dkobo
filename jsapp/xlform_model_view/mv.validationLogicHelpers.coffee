@@ -50,8 +50,8 @@ define 'cs!xlform/mv.validationLogicHelpers', [
     use_hand_code_helper: () ->
       @state = new validationLogicHelpers.ValidationLogicHandCodeHelper(@state.serialize(), @builder, @view_factory, @)
       if @questionTypeHasNoValidationOperators()
-        @state.button = @view_factory.create_empty()
-      @render @destination
+        @state.button = $injectJS.get 'Widgets/Empty'
+        @render @destination
       return
     constructor: (@model_factory, @view_factory, @helper_factory, serialized_criteria) ->
       @state = serialize: () -> return serialized_criteria
@@ -68,7 +68,7 @@ define 'cs!xlform/mv.validationLogicHelpers', [
   class validationLogicHelpers.ValidationLogicModeSelectorHelper extends $skipLogicHelpers.SkipLogicModeSelectorHelper
     constructor: (view_factory, @context) ->
       super
-      @handcode_button = view_factory.create_button '<i>${}</i> Manually enter your validation logic in XLSForm code', 'skiplogic__button skiplogic__select-handcode'
+      @handcode_button = $injectJS.get 'Widgets/Button', null, {text: '<i>${}</i> Manually enter your validation logic in XLSForm code', className: 'skiplogic__button skiplogic__select-handcode'}
 
   class validationLogicHelpers.ValidationLogicHandCodeHelper extends $skipLogicHelpers.SkipLogicHandCodeHelper
     render: ($destination) ->

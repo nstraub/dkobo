@@ -1,11 +1,11 @@
 define('xlform/model.rowDetails.skipLogic', [
         'backbone',
         'cs!xlform/model.utils',
-        'cs!xlform/mv.skipLogicHelpers'
+        '$injectJS'
         ], function(
                     Backbone,
                     $utils,
-                    $skipLogicHelpers
+                    $injectJS
                     ) {
 
 var __hasProp = {}.hasOwnProperty,
@@ -17,60 +17,8 @@ var rowDetailsSkipLogic = {};
   /**-----------------------------------------------------------------------------------------------------------
    * Factories.RowDetail.SkipLogic.coffee
    -----------------------------------------------------------------------------------------------------------**/
-
-rowDetailsSkipLogic.SkipLogicFactory = (function() {
-    SkipLogicFactory.prototype.create_operator = function(type, symbol, id) {
-        var operator;
-        switch (type) {
-            case 'text':
-                operator = new rowDetailsSkipLogic.TextOperator(symbol);
-                break;
-            case 'date':
-                operator = new rowDetailsSkipLogic.DateOperator(symbol);
-                break;
-            case 'basic':
-                operator = new rowDetailsSkipLogic.SkipLogicOperator(symbol);
-                break;
-            case 'existence':
-                operator = new rowDetailsSkipLogic.ExistenceSkipLogicOperator(symbol);
-                break;
-            case 'select_multiple':
-                operator = new rowDetailsSkipLogic.SelectMultipleSkipLogicOperator(symbol);
-                break;
-            case 'empty':
-                return new rowDetailsSkipLogic.EmptyOperator();
-        }
-        operator.set('id', id);
-        return operator;
-    };
-
-    SkipLogicFactory.prototype.create_criterion_model = function() {
-        return new rowDetailsSkipLogic.SkipLogicCriterion(this, this.survey);
-    };
-
-    SkipLogicFactory.prototype.create_response_model = function(type) {
-        var model;
-        model = null;
-        switch (type) {
-            case 'integer':
-                model = new rowDetailsSkipLogic.IntegerResponseModel;
-                break;
-            case 'decimal':
-                model = new rowDetailsSkipLogic.DecimalResponseModel;
-                break;
-            default:
-                model = new rowDetailsSkipLogic.ResponseModel(type);
-        }
-        return model.set('type', type);
-    };
-
-    function SkipLogicFactory(survey) {
-        this.survey = survey;
-    }
-
-    return SkipLogicFactory;
-
-})();
+var getOperatorTypes = $injectJS.inject('operator_types');
+rowDetailsSkipLogic.SkipLogicFactory = function() {};
 
   /**-----------------------------------------------------------------------------------------------------------
    * Model.RowDetail.SkipLogic.Criterion.js
@@ -125,9 +73,17 @@ rowDetailsSkipLogic.SkipLogicCriterion = (function(_super) {
             return;
         }
         //get operator types
-        type = $skipLogicHelpers.operator_types[operator - 1];
+        type = getOperatorTypes({index: operator - 1});
         symbol = type.symbol[type.parser_name[+is_negated]];
-        operator_model = this.factory.create_operator((type.type === 'equality' ? question_type.equality_operator_type : type.type), symbol, operator);
+        operator_model = $injectJS.get(
+            'SkipLogic/Model/Operator',
+            this,
+            {
+                operator_parser_name: (type.type === 'equality' ? question_type.equality_operator_type : type.type),
+                operator_symbol: symbol,
+                operator_type_id: operator
+            }
+        );
         this.set('operator', operator_model);
         if ((type.response_type || question_type.response_type) !== ((_ref = this.get('response_value')) != null ? _ref.get('type') : void 0)) {
             return this.change_response(((_ref1 = this.get('response_value')) != null ? (this._get_question()._isSelectQuestion() ? _ref1.get('cid'): _ref1.get('value')) : void 0) || '');
@@ -150,11 +106,12 @@ rowDetailsSkipLogic.SkipLogicCriterion = (function(_super) {
     SkipLogicCriterion.prototype.change_response = function(value) {
         var choice_cids, choices, current_value, response_model;
         response_model = this.get('response_value');
-        if (!response_model || response_model.get('type') !== this.get_correct_type()) {
-            response_model = this.factory.create_response_model(this.get_correct_type());
+        var correctType = this.get_correct_type();
+        if (!response_model || response_model.get('type') !== correctType) {
+            response_model = $injectJS.get('SkipLogic/Model/Response', null, {type: correctType});
             this.set('response_value', response_model);
         }
-        if (this.get_correct_type() === 'dropdown') {
+        if (correctType === 'dropdown') {
             current_value = response_model ? response_model.get('cid') : null;
 
             var choicelist = this._get_question().getList();
@@ -178,11 +135,17 @@ rowDetailsSkipLogic.SkipLogicCriterion = (function(_super) {
         }
     };
 
-    function SkipLogicCriterion(factory, survey) {
-        this.factory = factory;
+    SkipLogicCriterion.$inject = ['survey'];
+
+    function SkipLogicCriterion(survey) {
         this.survey = survey;
         SkipLogicCriterion.__super__.constructor.call(this);
     }
+
+    $injectJS.registerType('SkipLogic/Model/Criterion', SkipLogicCriterion, 'root', ['criterion', 'SkipLogic/Model/Operator', function (model, operator_model) {
+        model.set('operator', operator_model);
+        return model;
+    }]);
 
     return SkipLogicCriterion;
 })(Backbone.Model);
@@ -213,12 +176,42 @@ rowDetailsSkipLogic.Operator = (function(_super) {
 
     Operator.prototype.get_type = function() {
         // get operator types
-        return $skipLogicHelpers.operator_types[this.get('id') - 1];
+        return getOperatorTypes({index: this.get('id') - 1});
     };
 
     Operator.prototype.get_id = function() {
         return this.get('id');
     };
+
+    $injectJS.registerType
+    (
+        'SkipLogic/Model/Operator',
+        Operator,
+        'transient',
+        [
+            'SkipLogic/Model/Operator',
+            'operator_parser_name',
+            'operator_symbol',
+            'operator_type_id',
+            function(operator, type, symbol, id) {
+                var typeName;
+                if (type === 'select_multiple') {
+                    typeName = 'SelectMultiple';
+                } else {
+                    typeName = type.split('');
+                    typeName[0] = typeName[0].toUpperCase();
+                    typeName = typeName.join('');
+                }
+                operator = $injectJS.get('SkipLogic/Model/Operators/' + typeName, this, {symbol: symbol});
+
+                if (type !== 'empty') {
+                    operator.set('id', id);
+                }
+
+                return operator;
+            }
+        ]
+    );
 
     return Operator;
     // get base model
@@ -237,6 +230,8 @@ rowDetailsSkipLogic.EmptyOperator = (function(_super) {
         this.set('is_negated', false);
     }
 
+    $injectJS.registerType('SkipLogic/Model/Operators/Empty', EmptyOperator);
+
     return EmptyOperator;
 
 })(rowDetailsSkipLogic.Operator);
@@ -254,6 +249,10 @@ rowDetailsSkipLogic.SkipLogicOperator = (function(_super) {
         this.set('is_negated', ['!=', '<', '<='].indexOf(symbol) > -1);
     }
 
+    SkipLogicOperator.$inject = ['symbol'];
+
+    $injectJS.registerType('SkipLogic/Model/Operators/Basic', SkipLogicOperator);
+
     return SkipLogicOperator;
 
 })(rowDetailsSkipLogic.Operator);
@@ -268,6 +267,10 @@ rowDetailsSkipLogic.TextOperator = (function(_super) {
     TextOperator.prototype.serialize = function(question_name, response_value) {
         return TextOperator.__super__.serialize.call(this, question_name, "'" + response_value.replace(/'/g, "\\'") + "'");
     };
+
+    TextOperator.$inject = ['symbol'];
+
+    $injectJS.registerType('SkipLogic/Model/Operators/Text', TextOperator);
 
     return TextOperator;
 
@@ -287,6 +290,10 @@ rowDetailsSkipLogic.DateOperator = (function(_super) {
         return DateOperator.__super__.serialize.call(this, question_name, response_value);
     };
 
+    DateOperator.$inject = ['symbol'];
+
+    $injectJS.registerType('SkipLogic/Model/Operators/Date', DateOperator);
+
     return DateOperator;
 
 })(rowDetailsSkipLogic.SkipLogicOperator);
@@ -302,6 +309,10 @@ rowDetailsSkipLogic.ExistenceSkipLogicOperator = (function(_super) {
         ExistenceSkipLogicOperator.__super__.constructor.call(this, operator);
         this.set('is_negated', operator === '=');
     }
+
+    ExistenceSkipLogicOperator.$inject = ['symbol'];
+
+    $injectJS.registerType('SkipLogic/Model/Operators/Existence', ExistenceSkipLogicOperator);
 
     return ExistenceSkipLogicOperator;
 
@@ -322,6 +333,10 @@ rowDetailsSkipLogic.SelectMultipleSkipLogicOperator = (function(_super) {
         }
         return selected;
     };
+
+    SelectMultipleSkipLogicOperator.$inject = ['symbol'];
+
+    $injectJS.registerType('SkipLogic/Model/Operators/SelectMultiple', SelectMultipleSkipLogicOperator);
 
     return SelectMultipleSkipLogicOperator;
 
@@ -358,6 +373,19 @@ rowDetailsSkipLogic.ResponseModel = (function(_super) {
         });
     };
 
+    ResponseModel.$inject = ['type'];
+
+    $injectJS.registerType('SkipLogic/Model/Response', ResponseModel, 'transient', ['SkipLogic/Model/Response', 'type', function (model, type) {
+        var typeName;
+        if (type === 'integer' || type === 'decimal') {
+            typeName = type.split('');
+            typeName[0] = typeName[0].toUpperCase();
+            model = $injectJS.get('SkipLogic/Model/Responses/' + typeName, this);
+        }
+
+        return model.set('type', type);
+    }]);
+
     return ResponseModel;
     // get base model
 })(Backbone.Model);
@@ -384,6 +412,8 @@ rowDetailsSkipLogic.IntegerResponseModel = (function(_super) {
             validate: !!value
         });
     };
+
+    $injectJS.registerType('SkipLogic/Model/Responses/Integer', IntegerResponseModel);
 
     return IntegerResponseModel;
 
@@ -431,33 +461,9 @@ rowDetailsSkipLogic.DecimalResponseModel = (function(_super) {
         });
     };
 
+    $injectJS.registerType('SkipLogic/Model/Responses/Decimal', DecimalResponseModel);
+
     return DecimalResponseModel;
-
-})(rowDetailsSkipLogic.ResponseModel);
-
-rowDetailsSkipLogic.DateResponseModel = (function(_super) {
-    __extends(DateResponseModel, _super);
-
-    function DateResponseModel() {
-        return DateResponseModel.__super__.constructor.apply(this, arguments);
-    }
-
-    DateResponseModel.prototype.validation = {
-        value: {
-            pattern: /date\(\'\d{4}-\d{2}-\d{2}\'\)/
-        }
-    };
-
-    DateResponseModel.prototype.set_value = function(value) {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-            value = "date('" + value + "')";
-        }
-        return this.set('value', value, {
-            validate: true
-        });
-    };
-
-    return DateResponseModel;
 
 })(rowDetailsSkipLogic.ResponseModel);
 
