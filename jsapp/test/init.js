@@ -15,7 +15,7 @@ sinon.stubObject = function (obj, target) {
     return cls.__proto__ ? sinon.stubObject(cls.__proto__, target) : target;
 };
 
-injector.registerProvider('survey', function () {
+injector.registerProvider('XlForm/Model/Survey', function () {
     return this.getSurvey();
 });
 

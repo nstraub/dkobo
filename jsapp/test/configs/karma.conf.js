@@ -57,8 +57,7 @@ module.exports = function(config) {
             'test/unit/Service/*.coffee',
             'test/unit/SkipLogic/*.coffee',
             'test/unit/Validator/*.coffee',
-            'test/unit/SkipLogic.Tests.coffee',
-            'test/unit/Xlform.Tests.coffee',
+            'test/unit/*.coffee',
             'test/runner.coffee',
         ],
         plugins: [
@@ -77,7 +76,7 @@ module.exports = function(config) {
             'karma-coffee-preprocessor',
             'karma-ng-html2js-preprocessor',
         ],
-        // exclude: [],
+         exclude: ['test/unit/Xlform.View.Tests.coffee'],
         // test results reporters: (dots|progress|junit|growl|coverage)
         reporters: ['progress', 'coverage'],
         preprocessors: {

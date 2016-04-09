@@ -1,8 +1,6 @@
 define 'cs!xlform/mv.skipLogicHelpers', [
-        'xlform/model.skipLogicParser',
         '$injectJS'
         ], (
-            $skipLogicParser,
             $injectJS
             )->
 
@@ -140,42 +138,35 @@ define 'cs!xlform/mv.skipLogicHelpers', [
     serialize: () ->
       @model.serialize()
 
-    $inject: ['SkipLogic/Model/Criterion', 'SkipLogic/View/Criterion', 'current_question', 'survey']
+    $inject: ['SkipLogic/Model/Criterion', 'SkipLogic/View/Criterion', 'current_question', 'XlForm/Model/Survey']
 
     $injectJS.registerType('SkipLogic/Helpers/Presenter', SkipLogicPresenter)
 
   class skipLogicHelpers.SkipLogicBuilder
-    constructor: (@survey, @current_question) -> return
+    constructor: (@survey, @current_question, @parser, @operator_types) -> return
     build_criterion_builder: (serialized_criteria) ->
       if serialized_criteria == ''
         return [[@build_empty_criterion()], 'and']
 
       try
-        parsed = @_parse_skip_logic_criteria serialized_criteria
+        parsed = @parser.parse serialized_criteria
 
         criteria = _.filter(_.map(parsed.criteria, (criterion) =>
-            @criterion = criterion
-            @build_criterion()
+            @build_criterion(criterion)
           )
         , (item) -> !!item)
         if criteria.length == 0
           criteria.push @build_empty_criterion()
 
       catch e
+        console.error(e)
         trackJs?.console.log("SkipLogic cell: #{serialized_criteria}")
         trackJs?.console.error("could not parse skip logic. falling back to hand-coded")
         return false
       return [criteria, parsed.operator]
 
-    _parse_skip_logic_criteria: (criteria) ->
-      return $skipLogicParser criteria
-
-    _operator_type: () ->
-      return _.find skipLogicHelpers.operator_types, (op_type) =>
-          @criterion?.operator in op_type.parser_name
-
-    build_criterion: () =>
-      question = @_get_question()
+    build_criterion: (criterion) =>
+      question = @survey.findRowByName criterion.name
       if !question
         return false
 
@@ -184,14 +175,14 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
       question_type = question.get_type()
 
-      operator_type = @_operator_type()
+      operator_type = @operator_types.find_by_parser_name(criterion?.operator)
 
       presenter = $injectJS.get(
         'SkipLogic/Helpers/Presenter',
         @survey,
         {
           operator_parser_name: (if operator_type.type == 'existence' then 'existence' else question_type.equality_operator_type),
-          operator_symbol: operator_type.symbol[@criterion.operator],
+          operator_symbol: operator_type.symbol[criterion.operator],
           operator_type_id: operator_type.id
           operator_type
           question
@@ -202,14 +193,12 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
       presenter.model.change_question question.cid
 
-      response_value = if question._isSelectQuestion() then _.find(question.getList().options.models, (option) => return option.get('name') == @criterion.response_value)?.cid else @criterion.response_value
+      response_value = if question._isSelectQuestion() then _.find(question.getList().options.models, (option) => return option.get('name') == criterion.response_value)?.cid else criterion.response_value
       presenter.model.change_response response_value || ''
       presenter.view.response_value_view.model = presenter.model.get 'response_value'
       presenter.view.response_value_view.val(response_value)
 
       return presenter
-    _get_question: () ->
-      @survey.findRowByName @criterion.name
 
     build_empty_criterion: () =>
 
@@ -226,7 +215,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       @selectable = @current_question.selectableRows() || @selectable
       return @selectable
 
-    $inject: ['survey', 'current_question']
+    $inject: ['XlForm/Model/Survey', 'current_question', 'SkipLogic/Parser', 'SkipLogic/OperatorTypes']
 
     $injectJS.registerType('SkipLogic/Helpers/Builder', SkipLogicBuilder, 'root')
 
@@ -272,7 +261,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
         @state = serialize: () -> return serialized_criteria
         @use_hand_code_helper()
 
-    $inject: ['SkipLogic/Helpers/Builder', 'serialized_criteria', 'survey']
+    $inject: ['SkipLogic/Helpers/Builder', 'serialized_criteria', 'XlForm/Model/Survey']
 
     $injectJS.registerType('SkipLogic/Helpers/Context', SkipLogicHelperContext, 'root')
 
@@ -595,4 +584,21 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
   $injectJS.registerProvider('operator_types', ['index', (index)-> skipLogicHelpers.operator_types[index]])
 
+  $injectJS.registerType(
+    'SkipLogic/OperatorTypes',
+    () ->
+      for own key, prop of skipLogicHelpers.operator_types[0]
+        do (key, prop) =>
+          if _.isArray(prop)
+            @['find_by_' + key] = (value) ->
+              _.find(skipLogicHelpers.operator_types, (operator_type) ->
+                value in operator_type[key];
+              )
+          else
+            @['find_by_' + key] = (value) ->
+              _.find(skipLogicHelpers.operator_types, (operator_type) ->
+                operator_type[key] == value;
+              )
+    'singleton'
+  )
   skipLogicHelpers

@@ -1,14 +1,12 @@
 define 'cs!xlform/model.utils', [
-        'xlform/model.skipLogicParser',
-        'xlform/model.validationLogicParser'
+        '$injectJS',
         ], (
-            $skipLogicParser,
-            $validationLogicParser
+            $injectJS
             )->
 
   utils =
-    skipLogicParser: $skipLogicParser
-    validationLogicParser: $validationLogicParser
+    skipLogicParser: $injectJS.get('SkipLogic/Parser').parse
+    validationLogicParser: $injectJS.get('ValidationLogic/Parser').parse
 
   utils.txtid = ()->
     # a is text
@@ -36,7 +34,7 @@ define 'cs!xlform/model.utils', [
     parseSkipLogic: (collection, value, parent_row) ->
       collection.meta.set("rawValue", value)
       try
-        parsedValues = $skipLogicParser(value)
+        parsedValues = utils.skipLogicParser(value)
         collection.reset()
         collection.parseable = true
         for crit in parsedValues.criteria

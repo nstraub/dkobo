@@ -135,7 +135,7 @@ rowDetailsSkipLogic.SkipLogicCriterion = (function(_super) {
         }
     };
 
-    SkipLogicCriterion.$inject = ['survey'];
+    SkipLogicCriterion.$inject = ['XlForm/Model/Survey'];
 
     function SkipLogicCriterion(survey) {
         this.survey = survey;

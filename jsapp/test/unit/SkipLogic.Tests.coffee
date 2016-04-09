@@ -850,15 +850,13 @@ skip_logic_helpers = (dkobo_xlform) ->
       _builder = null
       _parser_stub = null
       beforeEach () ->
+        _parser_stub = sinon.stub()
+        injector.registerFake('SkipLogic/Parser', (()->), 'transient', [() -> return parse: _parser_stub])
         _builder = initialize_builder()
-        _parser_stub = sinon.stub _builder, '_parse_skip_logic_criteria'
 
         _builder.build_criterion = sinon.stub()
         _builder.build_criterion.onFirstCall().returns true
         _builder.build_criterion.onSecondCall().returns 'test'
-
-      afterEach () ->
-        _parser_stub.restore()
 
       it 'returns empty criterion logic presenter when no criteria are passed', () ->
         _builder.build_empty_criterion = sinon.stub().returns('test')
@@ -931,5 +929,6 @@ describe 'skip logic', ()->
   beforeEach () ->
     injector.clearState()
     injector.cache = {}
+    injector.flushFakes()
   describe 'model', -> skip_logic_model.call(@, dkobo_xlform)
   describe 'helpers', -> skip_logic_helpers.call(@, dkobo_xlform)

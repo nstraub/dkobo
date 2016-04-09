@@ -156,7 +156,7 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
     [
       'model',
       'current_question',
-      'survey',
+      'XlForm/Model/Survey',
       (model, target_question, survey) ->
         set_options = () =>
           options = _.map target_question.selectableRows(), (row) ->

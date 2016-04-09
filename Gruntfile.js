@@ -150,6 +150,11 @@ module.exports = function(grunt) {
                 src: ['node_modules/inject-js/dist/inject.js', 'node_modules/inject-js/node_modules/lodash/lodash.js'],
                 dest: 'dkobo/static/js/',
                 flatten: true
+            },
+            lodash: {
+                expand: true,
+                src: ['node_modules/lodash/lodash.js'],
+                dest: 'node_modules/inject-js/',
             }
         }
     });
@@ -182,12 +187,14 @@ module.exports = function(grunt) {
     ]);
 
     grunt.registerTask('develop', [
+        'copy:lodash',
         'requirejs:compile_xlform',
         'build_css',
         'watch',
     ]);
 
     grunt.registerTask('default', [
+        'copy:lodash',
         'copy',
         'develop',
     ]);

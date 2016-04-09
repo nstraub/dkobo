@@ -113,7 +113,7 @@ function BuilderController($scope, $rootScope, $routeParams, $routeTo, $miscUtil
         $scope.xlfSurveyApp.render();
     }
 
-    $injectJS.registerProvider('survey', function () {
+    $injectJS.registerProvider('XlForm/Model/Survey', function () {
         return this.getSurvey();
     });
 
