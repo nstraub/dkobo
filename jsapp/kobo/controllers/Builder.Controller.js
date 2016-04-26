@@ -114,7 +114,7 @@ function BuilderController($scope, $rootScope, $routeParams, $routeTo, $miscUtil
     }
 
     $injectJS.registerProvider('XlForm/Model/Survey', function () {
-        return this.getSurvey();
+        return $scope.xlfSurvey || this.getSurvey();
     });
 
     $scope.add_row_to_question_library = function (row) {

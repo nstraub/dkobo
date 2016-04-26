@@ -77,12 +77,12 @@ rowDetailsSkipLogic.SkipLogicCriterion = (function(_super) {
         symbol = type.symbol[type.parser_name[+is_negated]];
         operator_model = $injectJS.get(
             'SkipLogic/Model/Operator',
-            this,
             {
                 operator_parser_name: (type.type === 'equality' ? question_type.equality_operator_type : type.type),
                 operator_symbol: symbol,
                 operator_type_id: operator
-            }
+            },
+            this
         );
         this.set('operator', operator_model);
         if ((type.response_type || question_type.response_type) !== ((_ref = this.get('response_value')) != null ? _ref.get('type') : void 0)) {
@@ -108,7 +108,7 @@ rowDetailsSkipLogic.SkipLogicCriterion = (function(_super) {
         response_model = this.get('response_value');
         var correctType = this.get_correct_type();
         if (!response_model || response_model.get('type') !== correctType) {
-            response_model = $injectJS.get('SkipLogic/Model/Response', null, {type: correctType});
+            response_model = $injectJS.get('SkipLogic/Model/Response', {type: correctType});
             this.set('response_value', response_model);
         }
         if (correctType === 'dropdown') {
@@ -142,7 +142,7 @@ rowDetailsSkipLogic.SkipLogicCriterion = (function(_super) {
         SkipLogicCriterion.__super__.constructor.call(this);
     }
 
-    $injectJS.registerType('SkipLogic/Model/Criterion', SkipLogicCriterion, 'root', ['criterion', 'SkipLogic/Model/Operator', function (model, operator_model) {
+    $injectJS.registerType('SkipLogic/Model/Criterion', SkipLogicCriterion, 'parent', ['criterion', 'SkipLogic/Model/Operator', function (model, operator_model) {
         model.set('operator', operator_model);
         return model;
     }]);
@@ -202,7 +202,7 @@ rowDetailsSkipLogic.Operator = (function(_super) {
                     typeName[0] = typeName[0].toUpperCase();
                     typeName = typeName.join('');
                 }
-                operator = $injectJS.get('SkipLogic/Model/Operators/' + typeName, this, {symbol: symbol});
+                operator = $injectJS.get('SkipLogic/Model/Operators/' + typeName, {symbol: symbol}, this);
 
                 if (type !== 'empty') {
                     operator.set('id', id);
@@ -380,7 +380,7 @@ rowDetailsSkipLogic.ResponseModel = (function(_super) {
         if (type === 'integer' || type === 'decimal') {
             typeName = type.split('');
             typeName[0] = typeName[0].toUpperCase();
-            model = $injectJS.get('SkipLogic/Model/Responses/' + typeName, this);
+            model = $injectJS.get('SkipLogic/Model/Responses/' + typeName.join(''), null, this);
         }
 
         return model.set('type', type);

@@ -540,7 +540,7 @@ skip_logic_helpers = (dkobo_xlform) ->
       injector.registerFake('SkipLogic/View/Response', ()->response_view_stub)
       delete injector.fakes['SkipLogic/View/Response'].lifetime
 
-      _presenter = injector.get('SkipLogic/Helpers/Presenter', _survey, {current_question})
+      _presenter = injector.get('SkipLogic/Helpers/Presenter', {current_question}, _survey)
       _presenter.determine_add_new_criterion_visibility = sinon.spy()
       _presenter.serialize_all = sinon.spy()
       _presenter.dispatcher = _.clone Backbone.Events
@@ -635,6 +635,7 @@ skip_logic_helpers = (dkobo_xlform) ->
     _presenter_stubs = null
     _delimiter_spy = null
     _facade = null
+    _dispatcher_spy = null
 
     init_facade = () ->
       _question = sinon.stubObject $model.Row
@@ -656,6 +657,12 @@ skip_logic_helpers = (dkobo_xlform) ->
         sinon.stubObject $slh.SkipLogicPresenter
       ]
 
+      _dispatcher_spy =
+        on: sinon.spy()
+        off: sinon.spy()
+        trigger: sinon.spy()
+
+
       for presenter in _presenter_stubs
         presenter.model = _get_question: sinon.stub()
 
@@ -666,6 +673,9 @@ skip_logic_helpers = (dkobo_xlform) ->
         _presenter_stubs
         'and'
         _builder
+        _view
+        _dispatcher_spy
+        _builder.survey
       )
 
     afterEach () ->
@@ -692,20 +702,20 @@ skip_logic_helpers = (dkobo_xlform) ->
       it 'renders each presenter with destination taken from view', () ->
         expect(_presenter_stubs[0].render).toHaveBeenCalledWith 'test destination'
         expect(_presenter_stubs[1].render).toHaveBeenCalledWith 'test destination'
-      it "sets $criterion_delimiter to view's .skiplogic__delimselect element", () ->
-        expect(_facade.$criterion_delimiter).toBe _delimiter_spy
     describe 'determine_criterion_delimiter_visibility', () ->
       beforeEach () ->
         _facade = init_facade()
         _facade.$criterion_delimiter = _delimiter_spy
       it 'shows the criterion delimiter when there is more than one presenter', () ->
         _facade.determine_criterion_delimiter_visibility()
-        expect(_delimiter_spy.show).toHaveBeenCalledOnce()
+        expect(_dispatcher_spy.trigger).toHaveBeenCalledOnce()
+        expect(_dispatcher_spy.trigger).toHaveBeenCalledWith('SkipLogic:toggleCriterionDelimiter', true)
 
       it 'hides the criterion delimiter when there is one presenter', () ->
         _facade.presenters = ['']
         _facade.determine_criterion_delimiter_visibility()
-        expect(_delimiter_spy.hide).toHaveBeenCalledOnce()
+        expect(_dispatcher_spy.trigger).toHaveBeenCalledOnce()
+        expect(_dispatcher_spy.trigger).toHaveBeenCalledWith('SkipLogic:toggleCriterionDelimiter', false)
 
     describe 'serialize', () ->
       beforeEach () ->
@@ -775,7 +785,7 @@ skip_logic_helpers = (dkobo_xlform) ->
           off: sinon.spy()
           getSurvey: () -> helper_factory.survey
 
-      return injector.get('SkipLogic/Helpers/Context', helper_factory.survey, {serialized_criteria})
+      return injector.get('SkipLogic/Helpers/Context', {serialized_criteria}, helper_factory.survey)
       #return new $slh.SkipLogicHelperContext sinon.stubObject($mRdsl.SkipLogicFactory), sinon.stubObject($vRdsl.SkipLogicViewFactory), helper_factory, serialized_criteria
     describe 'render', () ->
       it 'calls render on inner state', () ->
@@ -845,7 +855,7 @@ skip_logic_helpers = (dkobo_xlform) ->
       survey.getSurvey.returns(survey)
       current_question = sinon.stubObject $model.Row
 
-      return injector.get('SkipLogic/Helpers/Builder', survey, {current_question, survey})
+      return injector.get('SkipLogic/Helpers/Builder', {current_question, survey}, survey)
     describe 'build criterion builder', () ->
       _builder = null
       _parser_stub = null
@@ -918,9 +928,9 @@ skip_logic_helpers = (dkobo_xlform) ->
 
     describe 'build empty criterion logic', () ->
       it 'returns an empty criterion logic model', () ->
-        builder = initialize_builder()
         fake_presenter = () ->
         injector.registerFake('SkipLogic/Helpers/Presenter', fake_presenter)
+        builder = initialize_builder()
         result = builder.build_empty_criterion()
 
         expect(result).toBeInstanceOf fake_presenter

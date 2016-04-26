@@ -1,4 +1,4 @@
-define('$injectJS', [], function() {
+define('$injectJS', ['backbone', 'underscore'], function(Backbone, _) {
     injector.strict_dependency_providers = false;
     function parserFactory(equalityCriterionPattern, existenceCriterionPattern, selectMultiplePattern, criteriaJoinPattern) {
         function parseCriterion(text) {
@@ -99,5 +99,10 @@ define('$injectJS', [], function() {
         },
         'singleton'
     );
+
+    injector.registerType('XlForm/Event/Dispatcher', function () {
+        _.extend(this, Backbone.Events);
+    }, 'root');
+
     return injector;
 });

@@ -16,7 +16,7 @@ define 'cs!xlform/model.rowDetailMixins', [
       v
 
     postInitialize: ()->
-      @facade = $injectJS.get('SkipLogic/Facade', @, {current_question: @_parent, serialized_criteria: @.get('value')})
+      @facade = $injectJS.get('SkipLogic/Facade', {current_question: @_parent, serialized_criteria: @.get('value')}, @)
 
     serialize: ()->
       # @hidden = false
@@ -37,7 +37,7 @@ define 'cs!xlform/model.rowDetailMixins', [
       v
 
     postInitialize: () ->
-      @facade = $injectJS.get('SkipLogic/Facade', @, {current_question: @_parent, serialized_criteria: @.get('value')})
+      @facade = $injectJS.get('SkipLogic/Facade', {current_question: @_parent, serialized_criteria: @.get('value')}, @)
 
     serialize: ()->
       # @hidden = false

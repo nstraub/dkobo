@@ -68,7 +68,7 @@ define 'cs!xlform/mv.validationLogicHelpers', [
   class validationLogicHelpers.ValidationLogicModeSelectorHelper extends $skipLogicHelpers.SkipLogicModeSelectorHelper
     constructor: (view_factory, @context) ->
       super
-      @handcode_button = $injectJS.get 'Widgets/Button', null, {text: '<i>${}</i> Manually enter your validation logic in XLSForm code', className: 'skiplogic__button skiplogic__select-handcode'}
+      @handcode_button = $injectJS.get 'Widgets/Button', {text: '<i>${}</i> Manually enter your validation logic in XLSForm code', className: 'skiplogic__button skiplogic__select-handcode'}
 
   class validationLogicHelpers.ValidationLogicHandCodeHelper extends $skipLogicHelpers.SkipLogicHandCodeHelper
     render: ($destination) ->

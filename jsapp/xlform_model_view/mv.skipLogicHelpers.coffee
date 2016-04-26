@@ -23,7 +23,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
     $injectJS.registerType('SkipLogic/Facade', ['SkipLogic/Helpers/Context', SkipLogicPresentationFacade])
 
   class skipLogicHelpers.SkipLogicPresenter
-    constructor: (@model, @view, @current_question, @survey) ->
+    constructor: (@model, @view, @current_question, @survey, @dispatcher) ->
       @view.presenter = @
       if @survey
         update_choice_list = (cid) =>
@@ -33,7 +33,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
             current_response_value = @model.get('response_value').get('cid')
 
             if !question.getList().options.get current_response_value
-              @dispatcher.trigger 'remove:presenter', @model.cid
+              @dispatcher.trigger 'SkipLogic:removeCriterionRequest', @model.cid
             else
               options = _.map question.getList().options.models, (response) ->
                 text: response.get('label')
@@ -64,9 +64,9 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       @question = @model._get_question()
       question_type = @question.get_type()
       @question.on 'remove', () =>
-        @dispatcher.trigger 'remove:presenter', @model.cid
+        @dispatcher.trigger 'SkipLogic:removeCriterionRequest', @model.cid
 
-      @view.change_operator $injectJS.get('SkipLogic/View/OperatorPicker', null, {question_type})
+      @view.change_operator $injectJS.get('SkipLogic/View/OperatorPicker', {question_type})
       @view.operator_picker_view.val @model.get('operator').get_value()
       @view.attach_operator()
 
@@ -86,7 +86,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       @finish_changing()
 
     change_response_view: (question_type, operator_type) ->
-      response_view = $injectJS.get('SkipLogic/View/Response', null, {question: @model._get_question(), question_type, operator_type})
+      response_view = $injectJS.get('SkipLogic/View/Response', {question: @model._get_question(), question_type, operator_type})
       response_view.model = @model.get 'response_value'
 
       @view.change_response response_view
@@ -95,7 +95,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       response_value = response_view.model.get('value')
 
       question = @model._get_question()
-      if (question._isSelectQuestion())
+      if (question._isSelectQuestion() && operator_type.type != 'existence')
         response_value = _.find(question.getList().options.models, (option) ->
           option.get('name') == response_value).cid
 
@@ -118,7 +118,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
     render: (@destination) ->
       @view.question_picker_view.detach()
-      @view.question_picker_view = $injectJS.get('SkipLogic/View/QuestionPicker', @survey, {@current_question})
+      @view.question_picker_view = $injectJS.get('SkipLogic/View/QuestionPicker', {@current_question}, @survey)
       @view.render()
       @view.question_picker_view.val @model.get('question_cid')
       @view.operator_picker_view.val @model.get('operator').get_value()
@@ -138,12 +138,12 @@ define 'cs!xlform/mv.skipLogicHelpers', [
     serialize: () ->
       @model.serialize()
 
-    $inject: ['SkipLogic/Model/Criterion', 'SkipLogic/View/Criterion', 'current_question', 'XlForm/Model/Survey']
+    $inject: ['SkipLogic/Model/Criterion', 'SkipLogic/View/Criterion', 'current_question', 'XlForm/Model/Survey', 'XlForm/Event/Dispatcher']
 
     $injectJS.registerType('SkipLogic/Helpers/Presenter', SkipLogicPresenter)
 
   class skipLogicHelpers.SkipLogicBuilder
-    constructor: (@survey, @current_question, @parser, @operator_types) -> return
+    constructor: (@survey, @current_question, @parser, @operator_types, @presenter_provider) -> return
     build_criterion_builder: (serialized_criteria) ->
       if serialized_criteria == ''
         return [[@build_empty_criterion()], 'and']
@@ -177,8 +177,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
       operator_type = @operator_types.find_by_parser_name(criterion?.operator)
 
-      presenter = $injectJS.get(
-        'SkipLogic/Helpers/Presenter',
+      presenter = @presenter_provider.call(
         @survey,
         {
           operator_parser_name: (if operator_type.type == 'existence' then 'existence' else question_type.equality_operator_type),
@@ -202,8 +201,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
 
     build_empty_criterion: () =>
 
-      return $injectJS.get(
-        'SkipLogic/Helpers/Presenter',
+      return @presenter_provider.call(
         @survey,
         {
           operator_parser_name: 'empty'
@@ -215,7 +213,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       @selectable = @current_question.selectableRows() || @selectable
       return @selectable
 
-    $inject: ['XlForm/Model/Survey', 'current_question', 'SkipLogic/Parser', 'SkipLogic/OperatorTypes']
+    $inject: ['XlForm/Model/Survey', 'current_question', 'SkipLogic/Parser', 'SkipLogic/OperatorTypes', 'SkipLogic/Helpers/Presenter::provider']
 
     $injectJS.registerType('SkipLogic/Helpers/Builder', SkipLogicBuilder, 'root')
 
@@ -224,10 +222,11 @@ define 'cs!xlform/mv.skipLogicHelpers', [
   ###----------------------------------------------------------------------------------------------------------###
 
   class skipLogicHelpers.SkipLogicHelperContext
-    render: (@destination) ->
+    render: (destination) ->
+      @destination = destination || @destination
       if @destination?
         @destination.empty()
-        @state.render destination
+        @state.render @destination
       return
     serialize: () ->
       return @state.serialize()
@@ -237,19 +236,19 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       if presenters == false
         @state = null
       else
-        @state = new skipLogicHelpers.SkipLogicCriterionBuilderHelper(presenters[0], presenters[1], @builder, @)
-        @render @destination
+        @state = @criterion_builder_provider.call(@survey, presenters: presenters[0], separator: presenters[1])
+        @render()
       return
     use_hand_code_helper: () ->
-      @state = new skipLogicHelpers.SkipLogicHandCodeHelper(@state.serialize(), @builder, @)
-      @render @destination
+      @state = @hand_code_provider(criteria: @state.serialize())
+      @render()
       return
     use_mode_selector_helper : () ->
-      @survey.off null, null, @state
-      @state = new skipLogicHelpers.SkipLogicModeSelectorHelper(@)
-      @render @destination
+      if @state.view? then @dispatcher.off null, null, @state.view
+      @state = @mode_selector
+      @render()
       return
-    constructor: (@builder, serialized_criteria, @survey) ->
+    constructor: (@builder, serialized_criteria, @survey, @criterion_builder_provider, @hand_code_provider, @mode_selector, @dispatcher) ->
       @state = serialize: () -> return serialized_criteria
       if !serialized_criteria? || serialized_criteria == ''
         serialized_criteria = ''
@@ -257,24 +256,26 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       else
         @use_criterion_builder_helper()
 
+      @dispatcher.on('SwitchHelper',((helper) ->
+        switch(helper)
+          when 'ModeSelector' then @use_mode_selector_helper()
+          when 'HandCode' then @use_hand_code_helper()
+          when 'CriterionBuilder' then @use_criterion_builder_helper()
+          else throw 'Invalid Helper Passed'
+      ), @)
       if !@state?
         @state = serialize: () -> return serialized_criteria
         @use_hand_code_helper()
 
-    $inject: ['SkipLogic/Helpers/Builder', 'serialized_criteria', 'XlForm/Model/Survey']
+    $inject: ['SkipLogic/Helpers/Builder', 'serialized_criteria', 'XlForm/Model/Survey', 'SkipLogic/Helpers/CriterionBuilder::provider', 'SkipLogic/Helpers/HandCode::provider', 'SkipLogic/Helpers/ModeSelector', 'XlForm/Event/Dispatcher']
 
     $injectJS.registerType('SkipLogic/Helpers/Context', SkipLogicHelperContext, 'root')
 
   class skipLogicHelpers.SkipLogicCriterionBuilderHelper
     determine_criterion_delimiter_visibility: () ->
-      if @presenters.length < 2
-        @$criterion_delimiter.hide()
-      else
-        @$criterion_delimiter.show()
+      @dispatcher.trigger('SkipLogic:toggleCriterionDelimiter', !(@presenters.length < 2))
     render: (destination) ->
       @view.render().attach_to destination
-      @$criterion_delimiter = @view.$(".skiplogic__delimselect")
-      @$add_new_criterion_button = @view.$('.skiplogic__addcriterion')
 
       @determine_criterion_delimiter_visibility()
 
@@ -289,8 +290,7 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       _.filter(serialized, (crit) -> crit).join(' ' + @view.criterion_delimiter + ' ')
     add_empty: () ->
       presenter = @builder.build_empty_criterion()
-      presenter.dispatcher = @dispatcher
-      presenter.serialize_all = _.bind @serialize, @
+
       @presenters.push presenter
       presenter.render @destination
       @determine_criterion_delimiter_visibility()
@@ -299,37 +299,27 @@ define 'cs!xlform/mv.skipLogicHelpers', [
         if presenter? && presenter.model.cid == id
           presenter = @presenters.splice(index, 1)[0]
           presenter.view.$el.remove()
-          @builder.survey.off null, null, presenter
+          @survey.off null, null, presenter
           @determine_add_new_criterion_visibility()
+          @determine_criterion_delimiter_visibility()
+          return false
 
       if @presenters.length == 0
-        @context.use_mode_selector_helper()
+        @dispatcher.trigger('SwitchHelper', 'ModeSelector')
 
     determine_add_new_criterion_visibility: () ->
-      if @all_presenters_are_valid()
-        action = 'show()'
-        @$add_new_criterion_button?.show()
-      else
-        action = 'hide()'
-        @$add_new_criterion_button?.hide()
+      @dispatcher.trigger('SkipLogic:toggleNewCriterionButton', @all_presenters_are_valid())
 
-      if !@$add_new_criterion_button
-        trackJs?.console.error("@$add_new_criterion_button is not defined. cannot call #{action} [inside of determine_add_new_criterion_visibility]")
-
-    constructor: (@presenters, separator, @builder, @context) ->
-      @view = $injectJS.get('SkipLogic/View/CriterionBuilder')
+    constructor: (@presenters, separator, @builder, @view, @dispatcher, @survey) ->
       @view.criterion_delimiter = (separator || 'and').toLowerCase()
-      @view.facade = @
-      @dispatcher = _.clone Backbone.Events
-      @dispatcher.on 'remove:presenter', (cid) =>
-        @remove cid
 
+      @dispatcher.on 'SkipLogic:removeCriterionRequest', @remove, @
 
-      @dispatcher.on 'changed:model', (presenter) =>
-        @determine_add_new_criterion_visibility()
+      @dispatcher.on 'SkipLogic:newCriterionRequest', @add_empty, @
 
-      @dispatcher.on 'rendered', (presenter) =>
-        @determine_add_new_criterion_visibility()
+      @dispatcher.on 'changed:model', @determine_add_new_criterion_visibility, @
+
+      @dispatcher.on 'rendered', @determine_add_new_criterion_visibility, @
 
       removeInvalidPresenters = () =>
         questions = builder.questions()
@@ -342,34 +332,35 @@ define 'cs!xlform/mv.skipLogicHelpers', [
           @remove presenter
 
         if @presenters.length == 0
-          @context.use_mode_selector_helper()
+          @dispatcher.trigger('SwitchHelper', 'ModeSelector')
 
-      @builder.survey.on 'sortablestop', removeInvalidPresenters, @
+      @survey.on 'sortablestop', removeInvalidPresenters, @
 
       removeInvalidPresenters()
-
-      _.each @presenters, (presenter) =>
-        presenter.dispatcher = @dispatcher
-        presenter.serialize_all = _.bind @serialize, @
 
     all_presenters_are_valid: () ->
         return !_.find @presenters, (presenter) -> !presenter.is_valid()
 
-    switch_editing_mode: () ->
-      @builder.build_hand_code_criteria @serialize()
+    $inject: ['presenters', 'separator', 'SkipLogic/Helpers/Builder', 'SkipLogic/View/CriterionBuilder', 'XlForm/Event/Dispatcher', 'XlForm/Model/Survey']
+
+    $injectJS.registerType('SkipLogic/Helpers/CriterionBuilder', SkipLogicCriterionBuilderHelper, 'root')
 
   class skipLogicHelpers.SkipLogicHandCodeHelper
     render: ($destination) ->
       $destination.append @$parent
       @textarea.render().attach_to @$parent
       @button.render().attach_to @$parent
-      @button.bind_event 'click', () => @context.use_mode_selector_helper()
+      @button.bind_event 'click', () => @dispatcher.trigger('SwitchHelper', 'ModeSelector')
     serialize: () ->
       @textarea.$el.val() || @criteria
-    constructor: (@criteria, @builder, @context) ->
+    constructor: (@criteria, @builder, @dispatcher) ->
       @$parent = $('<div>')
-      @textarea = $injectJS.get('Widgets/TextArea', null, {text: @criteria, className: 'skiplogic__handcode-edit'})
-      @button = $injectJS.get('Widgets/Button', null, {text: 'x', className: 'skiplogic-handcode__cancel'})
+      @textarea = $injectJS.get('Widgets/TextArea', {text: @criteria, className: 'skiplogic__handcode-edit'})
+      @button = $injectJS.get('Widgets/Button', {text: 'x', className: 'skiplogic-handcode__cancel'})
+
+    $inject: ['criteria', 'SkipLogic/Helpers/Builder', 'XlForm/Event/Dispatcher']
+
+    $injectJS.registerType('SkipLogic/Helpers/HandCode', SkipLogicHandCodeHelper)
 
   class skipLogicHelpers.SkipLogicModeSelectorHelper
     render: ($destination) ->
@@ -378,15 +369,20 @@ define 'cs!xlform/mv.skipLogicHelpers', [
       @criterion_builder_button.render().attach_to $parent
       @handcode_button.render().attach_to $parent
 
-      @criterion_builder_button.bind_event 'click', () => @context.use_criterion_builder_helper()
-      @handcode_button.bind_event 'click', () => @context.use_hand_code_helper()
+      @criterion_builder_button.bind_event 'click', () => @dispatcher.trigger('SwitchHelper', 'CriterionBuilder')
+      @handcode_button.bind_event 'click', () => @dispatcher.trigger('SwitchHelper', 'HandCode')
 
     serialize: () ->
       return ''
-    constructor: (@context) ->
-      @criterion_builder_button = $injectJS.get 'Widgets/Button', null, {text: '<i class="fa fa-plus"></i> Add a condition', className: 'skiplogic__button skiplogic__select-builder'}
-      @handcode_button = $injectJS.get 'Widgets/Button', null, {text: '<i>${}</i> Manually enter your skip logic in XLSForm code', className: 'skiplogic__button skiplogic__select-handcode'}
+    constructor: (@dispatcher) ->
+      @criterion_builder_button = $injectJS.get 'Widgets/Button', {text: '<i class="fa fa-plus"></i> Add a condition', className: 'skiplogic__button skiplogic__select-builder'}
+      @handcode_button = $injectJS.get 'Widgets/Button', {text: '<i>${}</i> Manually enter your skip logic in XLSForm code', className: 'skiplogic__button skiplogic__select-handcode'}
     switch_editing_mode: () -> return
+
+    $inject: ['XlForm/Event/Dispatcher']
+
+    $injectJS.registerType('SkipLogic/Helpers/ModeSelector', SkipLogicModeSelectorHelper)
+
 
   operators =
     EXISTENCE: 1

@@ -39,3 +39,5 @@ dkobo.v12.suo
 
 dkobo/static/js/*.html
 npm-debug.log
+dkobo/static/js/inject.js
+dkobo/static/js/lodash.js

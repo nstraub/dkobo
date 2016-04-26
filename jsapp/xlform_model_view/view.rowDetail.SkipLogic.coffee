@@ -15,6 +15,8 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
   viewRowDetailSkipLogic = {}
 
   class viewRowDetailSkipLogic.SkipLogicCriterionBuilderView extends $viewWidgets.Base
+    constructor: (@dispatcher) ->
+      super()
     events:
       "click .skiplogic__deletecriterion": "deleteCriterion"
       "click .skiplogic__addcriterion": "addCriterion"
@@ -35,23 +37,25 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
         </select>
       """)
 
+      addCriterionButton = @$('.skiplogic__addcriterion')
+      @dispatcher.on('SkipLogic:toggleNewCriterionButton', ((show) -> addCriterionButton.toggle(show)), @)
       delimSelect = @$(".skiplogic__delimselect").val(@criterion_delimiter)
+      @dispatcher.on('SkipLogic:toggleCriterionDelimiter', ((show) -> delimSelect.toggle(show)), @)
       delimSelect.children('[value=' + @criterion_delimiter + ']').attr('selected', 'selected')
+      @delegateEvents(@events)
 
       @
 
-    addCriterion: (evt) =>
-      @facade.add_empty()
+    addCriterion: () =>
+      @dispatcher.trigger('SkipLogic:newCriterionRequest')
     deleteCriterion: (evt)->
-      $target = $(evt.target)
-      modelId = $target.data("criterionId")
-      @facade.remove modelId
-      $target.parent().remove()
+      @dispatcher.trigger('SkipLogic:removeCriterionRequest', $(evt.target).data("criterionId"))
 
     markChangedDelimSelector: (evt) ->
       @criterion_delimiter = evt.target.value
 
-    $injectJS.registerType('SkipLogic/View/CriterionBuilder', SkipLogicCriterionBuilderView, 'transient')
+    $inject: ['XlForm/Event/Dispatcher']
+    $injectJS.registerType('SkipLogic/View/CriterionBuilder', SkipLogicCriterionBuilderView, 'root')
 
   class viewRowDetailSkipLogic.SkipLogicCriterion extends $viewWidgets.Base
     tagName: 'div'
@@ -129,7 +133,7 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
 
     $inject: ['SkipLogic/View/QuestionPicker', 'SkipLogic/View/OperatorPicker', 'SkipLogic/View/Response', 'SkipLogic/Model/Criterion']
 
-    $injectJS.registerType('SkipLogic/View/Criterion', SkipLogicCriterion, 'root')
+    $injectJS.registerType('SkipLogic/View/Criterion', SkipLogicCriterion, 'parent')
 
   class viewRowDetailSkipLogic.QuestionPicker extends $viewWidgets.DropDown
     tagName: 'select'
@@ -304,6 +308,8 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
         value: response.cid
       )
 
+    $inject: ['options']
+
     $injectJS.registerType('SkipLogic/View/Responses/DropDown', SkipLogicDropDownResponse)
 
   $injectJS.registerProvider('SkipLogic/View/Response', ['question', 'question_type', 'operator_type', (question, question_type, operator_type) ->
@@ -322,7 +328,7 @@ define 'cs!xlform/view.rowDetail.SkipLogic', [
         dependencies = options: question.getList().options
       else return null
 
-    return $injectJS.get('SkipLogic/View/Responses/' + type, @, dependencies)
+    return $injectJS.get('SkipLogic/View/Responses/' + type, dependencies, @)
   ])
 
   # deprecated, use $injectJS instead
